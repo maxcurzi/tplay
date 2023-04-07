@@ -11,5 +11,7 @@ Cargo.lock
 
 
 # Added by cargo
-
 /target
+
+# Manually added
+/assets
