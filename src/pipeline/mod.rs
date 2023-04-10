@@ -1,2 +1,3 @@
 pub mod char_maps;
-pub mod pipeline;
+pub mod frames;
+pub mod image_pipeline;
