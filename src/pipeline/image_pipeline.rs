@@ -60,6 +60,19 @@ mod tests {
     use crate::pipeline::char_maps::SHORT_EXT;
 
     use super::*;
+    use image::{DynamicImage, ImageError};
+    use reqwest;
+    use std::io::Cursor;
+
+    fn download_image(url: &str) -> Result<DynamicImage, ImageError> {
+        let response = reqwest::blocking::get(url)
+            .expect("Failed to download image")
+            .bytes()
+            .expect("Failed to get image bytes");
+
+        let image_data = Cursor::new(response);
+        image::load(image_data, image::ImageFormat::Png)
+    }
 
     #[test]
     fn test_new() {
@@ -71,7 +84,11 @@ mod tests {
     #[test]
     fn test_process() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
-        let input = image::open("assets/Lenna.png").unwrap();
+        let input = download_image(
+            "https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
+        )
+        .expect("Failed to download image");
+
         let output = image.process(&input);
         assert_eq!(output.width(), 120);
         assert_eq!(output.height(), 80);
@@ -80,7 +97,10 @@ mod tests {
     #[test]
     fn test_to_ascii_ext() {
         let image = ImagePipeline::new((120, 80), SHORT_EXT.chars().collect());
-        let input = image::open("assets/Lenna.png").unwrap();
+        let input = download_image(
+            "https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
+        )
+        .expect("Failed to download image");
         let output = image.to_ascii(&image.process(&input));
         assert_eq!(output.chars().count(), 120 * 80 + 79 * 2); // Resolution + newlines
     }
@@ -88,7 +108,10 @@ mod tests {
     #[test]
     fn test_to_ascii() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
-        let input = image::open("assets/Lenna.png").unwrap();
+        let input = download_image(
+            "https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
+        )
+        .expect("Failed to download image");
         let output = image.to_ascii(&image.process(&input));
         assert_eq!(output.len(), 120 * 80 + 79 * 2); // Resolution + newlines
     }
