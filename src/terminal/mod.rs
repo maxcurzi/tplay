@@ -1,11 +1,13 @@
+use crate::common::errors::MyError;
+
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, Event, KeyCode, KeyEvent},
     execute,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal,
-    terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetSize, SetTitle},
-    Result,
+    terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
+    Result as CTResult,
 };
 
 use std::{
@@ -17,7 +19,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::Control;
+use crate::runner::Control;
 
 pub struct Terminal {
     fg_color: Color,
@@ -34,123 +36,20 @@ impl Terminal {
         }
     }
 
-    fn poll_events(&self) -> Result<Option<Event>> {
-        todo!(); // move event polling logic here
-    }
-
-    fn draw(&self, string: &String) {
-        todo!(); // move draw logic here
-    }
-
-    pub fn run(
-        self,
-        string_buffer: Arc<Mutex<VecDeque<String>>>,
-        condvar: Arc<Condvar>,
-        commands_buffer: Arc<Mutex<VecDeque<Control>>>,
-    ) -> Result<()> {
-        execute!(stdout(), EnterAlternateScreen, SetTitle(self.title))?;
-        terminal::enable_raw_mode()?;
-        // Clear screen
+    fn clear(&self) -> CTResult<()> {
         execute!(
             stdout(),
             Clear(ClearType::All),
             Hide,
             SetForegroundColor(self.fg_color),
             SetBackgroundColor(self.bg_color),
-            MoveTo(0, 0) // Set cursor position
+            MoveTo(0, 0),
         )?;
-        let mut display_string = "".to_string();
-        let mut new_frame = false;
-        'outer: loop {
-            let mut buffer_guard = string_buffer.lock().unwrap();
-            (buffer_guard, _) = condvar
-                .wait_timeout(buffer_guard, Duration::from_millis(100))
-                .unwrap();
-            if let Some(s) = buffer_guard.pop_front() {
-                display_string = s;
-                new_frame = true;
-            }
-            drop(buffer_guard);
+        stdout().flush()?;
+        Ok(())
+    }
 
-            if new_frame {
-                execute!(
-                    stdout(),
-                    SetForegroundColor(self.fg_color),
-                    SetBackgroundColor(self.bg_color),
-                    Print(display_string.clone()),
-                    ResetColor,
-                    MoveTo(0, 0) // Set cursor position
-                )?;
-                // Flush output
-                stdout().flush()?;
-                new_frame = false;
-            }
-
-            // Wait for user input
-            match event::poll(Duration::from_millis(0))? {
-                true => {
-                    let ev = event::read()?;
-                    match ev {
-                        Event::Key(KeyEvent {
-                            code: KeyCode::Char('q'),
-                            ..
-                        })
-                        | Event::Key(KeyEvent {
-                            code: KeyCode::Char('Q'),
-                            ..
-                        })
-                        | Event::Key(KeyEvent {
-                            code: KeyCode::Char('c'),
-                            modifiers: event::KeyModifiers::CONTROL,
-                            ..
-                        })
-                        | Event::Key(KeyEvent {
-                            code: KeyCode::Char('C'),
-                            modifiers: event::KeyModifiers::CONTROL,
-                            ..
-                        })
-                        | Event::Key(KeyEvent {
-                            code: KeyCode::Esc, ..
-                        }) => {
-                            let mut control_guard = commands_buffer.lock().unwrap();
-                            control_guard.push_back(Control::Exit);
-                            break 'outer;
-                        }
-                        Event::Key(KeyEvent {
-                            code: KeyCode::Char(' '),
-                            ..
-                        }) => {
-                            let mut control_guard = commands_buffer.lock().unwrap();
-                            control_guard.push_back(Control::PauseContinue);
-                        }
-                        Event::Resize(_, _) => {
-                            // Drain buffer
-                            let mut buffer_guard = string_buffer.lock().unwrap();
-                            buffer_guard.clear();
-                            // Clear screen
-                            execute!(
-                                stdout(),
-                                Clear(ClearType::All),
-                                Hide,
-                                SetForegroundColor(self.fg_color),
-                                SetBackgroundColor(self.bg_color),
-                                MoveTo(0, 0) // Set cursor position
-                            )?;
-                            // Resize terminal
-                            let (width, height) = terminal::size().unwrap();
-                            execute!(stdout(), SetSize(width, height))?;
-                            let mut control_guard = commands_buffer.lock().unwrap();
-                            control_guard.push_back(Control::Refresh);
-                            // Reset vars
-                            display_string = "".to_string();
-                        }
-                        _ => {}
-                    }
-                }
-                false => std::thread::sleep(Duration::from_millis(10)),
-            }
-        }
-
+    fn cleanup(&self) -> CTResult<()> {
         // Restore terminal state
         execute!(
             stdout(),
@@ -161,5 +60,130 @@ impl Terminal {
         )?;
         terminal::disable_raw_mode()?;
         Ok(())
+    }
+
+    fn draw(&self, string: &String) -> CTResult<()> {
+        execute!(stdout(), MoveTo(0, 0), Print(string), MoveTo(0, 0),)?;
+        // Flush output
+        stdout().flush()?;
+        Ok(())
+    }
+
+    fn handle_event(
+        event: Event,
+        paused: &mut bool,
+        commands_buffer: &Arc<Mutex<VecDeque<Control>>>,
+    ) -> CTResult<()> {
+        match event {
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('q') | KeyCode::Char('Q'),
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Char('c') | KeyCode::Char('C'),
+                modifiers: event::KeyModifiers::CONTROL,
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Esc, ..
+            }) => {
+                let mut control_guard = commands_buffer
+                    .lock()
+                    .expect("Failed to lock commands buffer");
+                control_guard.push_back(Control::Exit);
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Char(' '),
+                ..
+            }) => {
+                let mut control_guard = commands_buffer
+                    .lock()
+                    .expect("Failed to lock commands buffer");
+                control_guard.push_back(Control::PauseContinue);
+                *paused = !*paused;
+            }
+            Event::Resize(width, height) => {
+                let mut control_guard = commands_buffer
+                    .lock()
+                    .expect("Failed to lock commands buffer");
+                control_guard.push_back(Control::Resize(width, height));
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Char(digit),
+                ..
+            }) if digit.is_ascii_digit() => {
+                let mut control_guard = commands_buffer
+                    .lock()
+                    .expect("Failed to lock commands buffer");
+
+                control_guard.push_back(Control::SetCharMap(
+                    digit
+                        .to_digit(10)
+                        .unwrap_or_else(|| panic!("Failed to parse digit:{digit:?}")),
+                ));
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub fn run(
+        &self,
+        string_buffer: Arc<Mutex<VecDeque<String>>>,
+        condvar: Arc<Condvar>,
+        commands_buffer: Arc<Mutex<VecDeque<Control>>>,
+    ) -> Result<(), MyError> {
+        execute!(stdout(), EnterAlternateScreen, SetTitle(&self.title))
+            .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+        terminal::enable_raw_mode().map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+        let (width, height) = terminal::size().map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+
+        // Clear screen
+        self.clear()
+            .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+
+        // Initialize terminal size and pass terminal size to pipeline
+        let mut control_guard = commands_buffer
+            .lock()
+            .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+        control_guard.push_back(Control::Resize(width, height));
+        drop(control_guard);
+        let mut paused = false;
+        'outer: loop {
+            if !paused {
+                let mut buffer_guard = string_buffer
+                    .lock()
+                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+                (buffer_guard, _) = condvar
+                    .wait_timeout(buffer_guard, Duration::from_millis(100))
+                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+                let next_frame = buffer_guard.pop_front();
+                drop(buffer_guard);
+
+                if let Some(s) = next_frame {
+                    self.draw(&s)
+                        .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+                }
+            }
+
+            // Poll events
+            if event::poll(Duration::from_millis(5))
+                .map_err(|e| MyError::Terminal(format!("{e:?}")))?
+            {
+                let ev = event::read().map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+                Self::handle_event(ev, &mut paused, &commands_buffer)
+                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+                if commands_buffer
+                    .lock()
+                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?
+                    .contains(&Control::Exit)
+                {
+                    break 'outer;
+                }
+            }
+        }
+
+        self.cleanup()
+            .map_err(|e| MyError::Terminal(format!("{e:?}")))
     }
 }

@@ -1,17 +1,14 @@
+// use crate::common::errors::MyError;
+
 /// Pipeline stage for converting images to ASCII art.
 use image::{DynamicImage, GrayImage};
 
 impl ImagePipeline {
     // Constructs a new ImagePipeline with the given scale, character lookup table, and average window size.
-    pub fn new(
-        target_resolution: (u32, u32),
-        char_lookup: Vec<char>,
-        // avg_window: (u32, u32),
-    ) -> Self {
+    pub fn new(target_resolution: (u32, u32), char_lookup: Vec<char>) -> Self {
         Self {
             target_resolution,
             char_lookup,
-            // avg_window,
         }
     }
     pub fn set_target_resolution(&mut self, width: u32, height: u32) -> &mut Self {
@@ -43,8 +40,10 @@ impl ImagePipeline {
                 let lookup_idx = self.char_lookup.len() * lum as usize / (u8::MAX as usize + 1);
                 self.char_lookup[lookup_idx]
             }));
-            output.push('\r');
-            output.push('\n');
+            if y < height - 1 {
+                output.push('\r');
+                output.push('\n');
+            }
         }
 
         output
@@ -52,9 +51,8 @@ impl ImagePipeline {
 }
 
 pub struct ImagePipeline {
-    target_resolution: (u32, u32),
-    char_lookup: Vec<char>,
-    // avg_window: (u32, u32),
+    pub target_resolution: (u32, u32),
+    pub char_lookup: Vec<char>,
 }
 
 #[cfg(test)]
@@ -68,7 +66,6 @@ mod tests {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
         assert_eq!(image.target_resolution, (120, 80));
         assert_eq!(image.char_lookup, vec!['a', 'b', 'c']);
-        // assert_eq!(image.avg_window, (1, 1));
     }
 
     #[test]
@@ -85,7 +82,7 @@ mod tests {
         let image = ImagePipeline::new((120, 80), SHORT_EXT.chars().collect());
         let input = image::open("assets/Lenna.png").unwrap();
         let output = image.to_ascii(&image.process(&input));
-        assert_eq!(output.chars().count(), 120 * 80 + 80 * 2); // Resolution + newlines
+        assert_eq!(output.chars().count(), 120 * 80 + 79 * 2); // Resolution + newlines
     }
 
     #[test]
@@ -93,6 +90,6 @@ mod tests {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
         let input = image::open("assets/Lenna.png").unwrap();
         let output = image.to_ascii(&image.process(&input));
-        assert_eq!(output.len(), 120 * 80 + 80 * 2); // Resolution + newlines
+        assert_eq!(output.len(), 120 * 80 + 79 * 2); // Resolution + newlines
     }
 }

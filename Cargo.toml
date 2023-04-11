@@ -1,5 +1,5 @@
 [package]
-name = "tpw"
+name = "tplay"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,4 +10,6 @@ clap = { version = "4.2.1", features = ["derive"] }
 crossterm = "0.26.1"
 gif = "0.12.0"
 image = "0.24.6"
+ndarray = "0.15.6"
 opencv = "0.78.2"
+thiserror = "1.0.40"

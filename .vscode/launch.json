@@ -7,34 +7,37 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'tpw'",
+            "name": "Debug executable 'tplay'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=tpw",
-                    "--package=tpw"
+                    "--bin=tplay",
+                    "--package=tplay"
                 ],
                 "filter": {
-                    "name": "tpw",
+                    "name": "tplay",
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+                "--input",
+                "assets/homer2.jpg"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'tpw'",
+            "name": "Debug unit tests in executable 'tplay'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=tpw",
-                    "--package=tpw"
+                    "--bin=tplay",
+                    "--package=tplay"
                 ],
                 "filter": {
-                    "name": "tpw",
+                    "name": "tplay",
                     "kind": "bin"
                 }
             },
