@@ -1,11 +1,11 @@
-use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
 use tempfile;
+use tempfile::TempPath;
 
 use crate::common::errors::MyError;
 
-pub fn download_video(url: &str) -> Result<PathBuf, MyError> {
+pub fn download_video(url: &str) -> Result<TempPath, MyError> {
     // Check that yt-dlp is installed
     if !Command::new("yt-dlp").output().is_ok() {
         return Err(MyError::Application(
@@ -43,11 +43,9 @@ See https://github.com/yt-dlp/yt-dlp/wiki/Installation"
             .map_err(|e| MyError::Application(format!("{e:?}")))?;
 
         // Get the path to the temporary file
-        let temp_file_path = temp_file.path();
+        let temp_file_path = temp_file.into_temp_path();
 
-        // println!("Downloaded video to temporary file: {:?}", &temp_file_path);
-        return Ok(temp_file_path.to_path_buf());
-        // Use the temp_file_path variable to pass the video file to your program
+        return Ok(temp_file_path);
     } else {
         return Err(MyError::Application(format!(
             "Error downloading video: {:?}",

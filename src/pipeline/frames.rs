@@ -1,12 +1,12 @@
 /// FRAME ITERATOR DOCUMENTATION
 use crate::common::errors::*;
+use crate::downloader::youtube;
 use gif;
 use image::io::Reader as ImageReader;
 use image::{DynamicImage, ImageBuffer};
 use opencv::{imgproc, prelude::*, videoio::VideoCapture};
 use std::fs::File;
 use std::path::Path;
-
 pub enum FrameIterator {
     Image(Option<DynamicImage>),
     Video(VideoCapture),
@@ -15,6 +15,7 @@ pub enum FrameIterator {
         current_frame: usize,
     },
 }
+use url::Url;
 
 impl Iterator for FrameIterator {
     type Item = DynamicImage;
@@ -119,6 +120,16 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
 pub fn open_media<P: AsRef<Path>>(path: P) -> Result<FrameIterator, MyError> {
     let path = path.as_ref();
     let ext = path.extension().and_then(std::ffi::OsStr::to_str);
+
+    // Check if the path is a URL and has a YouTube domain
+    if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
+        if let Some(domain) = url.domain() {
+            if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
+                let video = youtube::download_video(path.to_str().unwrap())?;
+                return open_video(&video);
+            }
+        }
+    }
 
     match ext {
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
