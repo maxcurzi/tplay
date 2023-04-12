@@ -33,7 +33,7 @@ use crate::common::errors::MyError;
 /// * There is an issue with creating or writing to the temporary file.
 pub fn download_video(url: &str) -> Result<TempPath, MyError> {
     // Check that yt-dlp is installed
-    if !Command::new("yt-dlp").output().is_ok() {
+    if Command::new("yt-dlp").output().is_err() {
         return Err(MyError::Application(
             "yt-dlp is not installed.
 To view YouTube videos Please install it and try again.
@@ -71,11 +71,11 @@ See https://github.com/yt-dlp/yt-dlp/wiki/Installation"
         // Get the path to the temporary file
         let temp_file_path = temp_file.into_temp_path();
 
-        return Ok(temp_file_path);
+        Ok(temp_file_path)
     } else {
-        return Err(MyError::Application(format!(
+        Err(MyError::Application(format!(
             "Error downloading video: {:?}",
             output.stderr
-        )));
+        )))
     }
 }

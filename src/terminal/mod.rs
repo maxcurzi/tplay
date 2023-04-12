@@ -1,4 +1,6 @@
-/// TERMINAL DOCUMENTATION
+//! The `terminal` module provides functionality for displaying an animation in
+//! the terminal and handling user input events such as pausing/continuing,
+//! resizing, and changing character maps.
 use crate::common::errors::{MyError, ERROR_LOCK_CMD_BUFFER_FAILED, ERROR_PARSE_DIGIT_FAILED};
 
 use crossterm::{
@@ -22,20 +24,35 @@ use std::time::Duration;
 
 use crate::runner::Control;
 
+/// Represents the playback state of the Terminal.
 #[derive(PartialEq)]
 enum State {
+    /// The Terminal is currently playing the animation.
     Running,
+    /// The Terminal has paused the animation.
     Paused,
+    /// The Terminal has stopped the animation.
     Stopped,
 }
 
+/// The `Terminal` struct handles the display of the animation in the terminal and
+/// user input events.
 pub struct Terminal {
+    /// The foreground color for the terminal display.
     fg_color: Color,
+    /// The background color for the terminal display.
     bg_color: Color,
+    /// The title of the terminal window.
     title: String,
+    /// The current playback state of the Terminal.
     state: State,
 }
 impl Terminal {
+    /// Constructs a new Terminal with the specified title.
+    ///
+    /// # Arguments
+    ///
+    /// * `title` - The title for the terminal window.
     pub fn new(title: String) -> Self {
         // Define colors
         Self {
@@ -46,6 +63,11 @@ impl Terminal {
         }
     }
 
+    /// Clears the terminal screen and sets the initial terminal state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with the terminal operations.
     fn clear(&self) -> CTResult<()> {
         execute!(
             stdout(),
@@ -59,6 +81,11 @@ impl Terminal {
         Ok(())
     }
 
+    /// Restores the terminal to its original state after the animation has stopped.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with the terminal operations.
     fn cleanup(&self) -> CTResult<()> {
         // Restore terminal state
         execute!(
@@ -72,6 +99,15 @@ impl Terminal {
         Ok(())
     }
 
+    /// Draws the current frame of the animation in the terminal.
+    ///
+    /// # Arguments
+    ///
+    /// * `string` - The string representation of the current frame to be displayed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with the terminal operations.
     fn draw(&self, string: &String) -> CTResult<()> {
         execute!(stdout(), MoveTo(0, 0), Print(string), MoveTo(0, 0),)?;
         // Flush output
@@ -79,6 +115,17 @@ impl Terminal {
         Ok(())
     }
 
+    /// Handles user input events such as pausing/continuing, resizing, and
+    /// changing character maps.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The event received from the terminal.
+    /// * `commands_buffer` - The shared buffer for sending control commands.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with the terminal operations.
     fn handle_event(
         &mut self,
         event: Event,
@@ -131,6 +178,19 @@ impl Terminal {
         Ok(())
     }
 
+    /// The main loop of the Terminal that runs the animation, handles user input,
+    /// and manages the playback state.
+    ///
+    /// # Arguments
+    ///
+    /// * `string_buffer` - The shared buffer containing processed frames as strings.
+    /// * `condvar` - The condition variable to notify that a new frame is ready.
+    /// * `commands_buffer` - The shared buffer for sending control commands.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with the terminal operations or
+    /// synchronization primitives.
     pub fn run(
         &mut self,
         string_buffer: Arc<Mutex<VecDeque<String>>>,
