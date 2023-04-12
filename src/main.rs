@@ -1,11 +1,22 @@
-/// Main doc
-mod cli;
+//! Main module for the application.
+//!
+//! This module contains the main function and handles command line arguments,
+//! media processing, and terminal display.
+//! The main function launches two threads, one for processing the media and
+//! one for displaying the terminal.
+//! The media processing thread is responsible for reading the media file,
+//! processing it, and sending the processed frames to the terminal thread.
+//! The terminal thread is responsible for displaying the terminal and
+//! receiving the processed frames from the media processing thread.
+//! The media processing thread and the terminal thread communicate via a
+//! shared buffer.
+//!
 mod common;
 mod downloader;
 mod pipeline;
 mod terminal;
 use crate::common::errors::MyError;
-use crate::pipeline::char_maps::SHORT;
+use crate::pipeline::char_maps::SHORT1;
 use crate::pipeline::image_pipeline::ImagePipeline;
 use clap::Parser;
 
@@ -19,6 +30,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use terminal::Terminal;
 
+/// Command line arguments structure.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -29,13 +41,17 @@ struct Args {
     #[arg(short, long, default_value = "60")]
     fps: u64,
     /// Custom lookup char table
-    #[arg(short, long, default_value = SHORT)]
+    #[arg(short, long, default_value = SHORT1)]
     char_lookup: String,
     /// Experimental width modifier (emojis have 2x width)
     #[arg(long, default_value = "1")]
     w_mod: u32,
 }
 
+/// Main function for the application.
+///
+/// This function parses command line arguments, opens the media, initializes the
+/// pipeline and terminal threads, and then waits for them to finish.
 fn main() -> Result<(), MyError> {
     let args = Args::parse();
 

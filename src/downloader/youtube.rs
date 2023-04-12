@@ -1,3 +1,11 @@
+//! This module provides a function to download a video from a given URL.
+//!
+//! The main function `download_video` uses the `yt-dlp` tool to download a video
+//! from a given URL and stores it in a temporary file.
+//! The function returns a temporary file path to the downloaded video.
+//! The temporary file is deleted when the file is closed.
+//! The temporary file is created in a temporary directory (OS dependent).
+
 use std::process::Command;
 use std::process::Stdio;
 use tempfile;
@@ -5,6 +13,24 @@ use tempfile::TempPath;
 
 use crate::common::errors::MyError;
 
+/// Downloads a video from the given URL using `yt-dlp` and saves it to a temporary file.
+///
+/// # Arguments
+///
+/// * `url` - The URL of the video to download.
+///
+/// # Returns
+///
+/// * `Ok(TempPath)` - The path to the downloaded temporary video file.
+/// * `Err(MyError)` - An error if the video download fails or if `yt-dlp` is not installed.
+///
+/// # Errors
+///
+/// This function can return an error in the following situations:
+///
+/// * `yt-dlp` is not installed on the system.
+/// * The video download fails for any reason.
+/// * There is an issue with creating or writing to the temporary file.
 pub fn download_video(url: &str) -> Result<TempPath, MyError> {
     // Check that yt-dlp is installed
     if !Command::new("yt-dlp").output().is_ok() {

@@ -1,6 +1,13 @@
+//! The `runner` module contains the Runner struct and related functionality to
+//! control and run ASCII animations.
+//!
+//! The `Runner` struct is responsible for handling the image pipeline,
+//! processing frames, managing playback state, and controlling the frame rate.
+//! It also handles commands for pausing/continuing, resizing, and changing
+//! character maps during playback.
 use image::DynamicImage;
 
-use crate::pipeline::char_maps::{LONG, LONG_2, SHORT, SHORT_EXT};
+use crate::pipeline::char_maps::{LONG1, LONG2, SHORT1, SHORT2};
 
 use super::frames::FrameIterator;
 use super::image_pipeline::ImagePipeline;
@@ -25,7 +32,6 @@ pub struct Runner {
     string_buffer: Arc<Mutex<VecDeque<String>>>,
     condvar: Arc<Condvar>,
     commands_buffer: Arc<Mutex<VecDeque<Control>>>,
-    internal_string_buffer: VecDeque<String>,
     w_mod: u32, // Width modifier (use 2 for emojis)
     char_maps: Vec<Vec<char>>,
 }
@@ -49,13 +55,12 @@ impl Runner {
         commands_buffer: Arc<Mutex<VecDeque<Control>>>,
         w_mod: u32,
     ) -> Self {
-        let internal_string_buffer = VecDeque::with_capacity(MAX_CAPACITY);
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_lookup.clone(),
-            SHORT.to_string().chars().collect(),
-            SHORT_EXT.to_string().chars().collect(),
-            LONG.to_string().chars().collect(),
-            LONG_2.to_string().chars().collect(),
+            SHORT1.to_string().chars().collect(),
+            SHORT2.to_string().chars().collect(),
+            LONG1.to_string().chars().collect(),
+            LONG2.to_string().chars().collect(),
         ];
 
         Self {
@@ -66,7 +71,6 @@ impl Runner {
             string_buffer,
             condvar,
             commands_buffer,
-            internal_string_buffer,
             w_mod,
             char_maps,
         }
@@ -85,10 +89,9 @@ impl Runner {
         true
     }
 
-    fn process_frame(&mut self, frame: &DynamicImage) {
+    fn process_frame(&mut self, frame: &DynamicImage) -> String {
         let procimage = self.pipeline.process(frame);
-        let output = self.pipeline.to_ascii(&procimage);
-        self.internal_string_buffer.push_back(output);
+        self.pipeline.to_ascii(&procimage)
     }
 
     pub fn run(&mut self) {
@@ -129,49 +132,31 @@ impl Runner {
                 }
             }
             drop(buffer_controls_guard);
-            // if self.internal_string_buffer.len() < MAX_CAPACITY {
-            //     // Convert new frame
-            //     let frame = match self.state {
-            //         State::Running => self.media.next(),
-            //         State::Paused | State::Stopped => None,
-            //     };
-            //     if let Some(frame) = frame {
-            //         last_frame = Some(frame.clone());
-            //         self.process_frame(&frame);
-            //     } else if last_frame.is_some() && refresh {
-            //         self.process_frame(&last_frame.clone().unwrap());
-            //         refresh = false;
-            //     }
-            // } else {
-            //     // String buffer isn't being consumed fast enough, remove oldest frame
-            //     self.internal_string_buffer.pop_front();
-            // }
-
             if self.time_to_send_next_frame(&mut time_count)
                 && (self.state == State::Running || self.state == State::Paused)
             {
-                // Do not buffer more than one frame, and
-                // discard it if it's not read. Keeps playback stable but will
-                // skip frames if the terminal is too slow
-                self.internal_string_buffer.drain(..);
-
                 // Convert new frame
                 let frame = match self.state {
                     State::Running => self.media.next(),
                     State::Paused | State::Stopped => None,
                 };
-                if let Some(frame) = frame {
-                    last_frame = Some(frame.clone());
-                    self.process_frame(&frame);
-                } else if last_frame.is_some() && refresh {
-                    self.process_frame(&last_frame.clone().unwrap());
-                    refresh = false;
-                }
+                let string_out = match frame {
+                    Some(frame) => {
+                        last_frame = Some(frame.clone());
+                        self.process_frame(&frame)
+                    }
+                    None => {
+                        if last_frame.is_some() && refresh {
+                            refresh = false;
+                            self.process_frame(&last_frame.clone().unwrap())
+                        } else {
+                            String::new()
+                        }
+                    }
+                };
                 let mut buffer_guard = self.string_buffer.lock().unwrap();
-                if self.internal_string_buffer.len() > 0 {
-                    buffer_guard.push_back(self.internal_string_buffer.pop_back().unwrap());
-                    self.condvar.notify_one();
-                }
+                buffer_guard.push_back(string_out);
+                self.condvar.notify_one();
             }
         }
     }

@@ -1,22 +1,60 @@
-/// DOCUMENTATION Pipeline stage for converting images to ASCII art.
+//! The `ImagePipeline` module contains a struct and implementation for converting images to ASCII
+//! art. It provides a pipeline for processing images, resizing them, and converting them to ASCII
+//! representations using a character lookup table.
 use fast_image_resize as fr;
 use image::{DynamicImage, GrayImage};
 use std::num::NonZeroU32;
 
+/// The `ImagePipeline` struct encapsulates the process of converting an image to ASCII art. It
+/// stores the target resolution (width and height) and the character lookup table used for the
+/// conversion.
+pub struct ImagePipeline {
+    pub target_resolution: (u32, u32),
+    pub char_lookup: Vec<char>,
+}
+
 impl ImagePipeline {
-    // Constructs a new ImagePipeline with the given scale, character lookup table, and average window size.
+    /// Constructs a new `ImagePipeline` with the given target resolution (width and height) and
+    /// character lookup table (a vector of characters).
+    ///
+    /// # Arguments
+    ///
+    /// * `target_resolution` - A tuple of two u32 integers representing the target width and
+    ///   height.
+    /// * `char_lookup` - A vector of characters to be used as the lookup table for ASCII
+    ///   conversion.
     pub fn new(target_resolution: (u32, u32), char_lookup: Vec<char>) -> Self {
         Self {
             target_resolution,
             char_lookup,
         }
     }
+
+    /// Sets the target resolution (width and height) for the pipeline and returns a mutable
+    /// reference to self.
+    ///
+    /// # Arguments
+    ///
+    /// * `width` - The target width as a u32 integer.
+    /// * `height` - The target height as a u32 integer.
     pub fn set_target_resolution(&mut self, width: u32, height: u32) -> &mut Self {
         self.target_resolution = (width, height);
         self
     }
 
-    // Scale the image according to the scale stored in this ImagePipeline.
+    /// Scales the given image according to the target resolution stored in this `ImagePipeline` and
+    /// returns a new `GrayImage`.
+    ///
+    /// This method resizes the input image to the target resolution using the fast-image-resize
+    /// crate and converts it to grayscale.
+    ///
+    /// # Arguments
+    ///
+    /// * `img` - A reference to a `DynamicImage` to be processed.
+    ///
+    /// # Returns
+    ///
+    /// A `GrayImage` representing the resized and grayscale converted input image.
     pub fn process(&self, img: &DynamicImage) -> GrayImage {
         let width = NonZeroU32::new(img.width()).unwrap();
         let height = NonZeroU32::new(img.height()).unwrap();
@@ -46,7 +84,20 @@ impl ImagePipeline {
         .unwrap()
     }
 
-    // Converts the given grayscale image to ASCII art using the character lookup table stored in this ImagePipeline.
+    /// Converts the given grayscale image to ASCII art using the character lookup table stored in
+    /// this `ImagePipeline`.
+    ///
+    /// This method iterates through the pixels of the input image and maps each pixel's grayscale
+    /// value to a character from the lookup table. The resulting ASCII art is returned as a
+    /// `String`.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - A reference to a `GrayImage` to be converted to ASCII art.
+    ///
+    /// # Returns
+    ///
+    /// A `String` containing the ASCII art representation of the input image.
     pub fn to_ascii(&self, input: &GrayImage) -> String {
         let (width, height) = (input.width(), input.height());
         let capacity = (width + 1) * height + 1;
@@ -68,14 +119,9 @@ impl ImagePipeline {
     }
 }
 
-pub struct ImagePipeline {
-    pub target_resolution: (u32, u32),
-    pub char_lookup: Vec<char>,
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::pipeline::char_maps::SHORT_EXT;
+    use crate::pipeline::char_maps::SHORT2;
 
     use super::*;
     use image::{DynamicImage, ImageError};
@@ -114,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_to_ascii_ext() {
-        let image = ImagePipeline::new((120, 80), SHORT_EXT.chars().collect());
+        let image = ImagePipeline::new((120, 80), SHORT2.chars().collect());
         let input = download_image(
             "https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
         )
