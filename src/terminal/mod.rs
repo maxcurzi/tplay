@@ -1,4 +1,5 @@
-use crate::common::errors::MyError;
+/// TERMINAL DOCUMENTATION
+use crate::common::errors::{MyError, ERROR_LOCK_CMD_BUFFER_FAILED, ERROR_PARSE_DIGIT_FAILED};
 
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
@@ -21,10 +22,18 @@ use std::time::Duration;
 
 use crate::runner::Control;
 
+#[derive(PartialEq)]
+enum State {
+    Running,
+    Paused,
+    Stopped,
+}
+
 pub struct Terminal {
     fg_color: Color,
     bg_color: Color,
     title: String,
+    state: State,
 }
 impl Terminal {
     pub fn new(title: String) -> Self {
@@ -33,6 +42,7 @@ impl Terminal {
             fg_color: Color::White,
             bg_color: Color::Black,
             title,
+            state: State::Running,
         }
     }
 
@@ -70,8 +80,8 @@ impl Terminal {
     }
 
     fn handle_event(
+        &mut self,
         event: Event,
-        paused: &mut bool,
         commands_buffer: &Arc<Mutex<VecDeque<Control>>>,
     ) -> CTResult<()> {
         match event {
@@ -87,40 +97,34 @@ impl Terminal {
             | Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => {
-                let mut control_guard = commands_buffer
-                    .lock()
-                    .expect("Failed to lock commands buffer");
+                let mut control_guard = commands_buffer.lock().expect(ERROR_LOCK_CMD_BUFFER_FAILED);
                 control_guard.push_back(Control::Exit);
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Char(' '),
                 ..
             }) => {
-                let mut control_guard = commands_buffer
-                    .lock()
-                    .expect("Failed to lock commands buffer");
+                let mut control_guard = commands_buffer.lock().expect(ERROR_LOCK_CMD_BUFFER_FAILED);
                 control_guard.push_back(Control::PauseContinue);
-                *paused = !*paused;
+                self.state = match self.state {
+                    State::Running => State::Paused,
+                    State::Paused => State::Running,
+                    State::Stopped => State::Stopped,
+                };
             }
             Event::Resize(width, height) => {
-                let mut control_guard = commands_buffer
-                    .lock()
-                    .expect("Failed to lock commands buffer");
+                let mut control_guard = commands_buffer.lock().expect(ERROR_LOCK_CMD_BUFFER_FAILED);
                 control_guard.push_back(Control::Resize(width, height));
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Char(digit),
                 ..
             }) if digit.is_ascii_digit() => {
-                let mut control_guard = commands_buffer
-                    .lock()
-                    .expect("Failed to lock commands buffer");
+                let mut control_guard = commands_buffer.lock().expect(ERROR_LOCK_CMD_BUFFER_FAILED);
 
-                control_guard.push_back(Control::SetCharMap(
-                    digit
-                        .to_digit(10)
-                        .unwrap_or_else(|| panic!("Failed to parse digit:{digit:?}")),
-                ));
+                control_guard.push_back(Control::SetCharMap(digit.to_digit(10).unwrap_or_else(
+                    || panic!("{error}: {digit:?}", error = ERROR_PARSE_DIGIT_FAILED),
+                )));
             }
             _ => {}
         }
@@ -128,7 +132,7 @@ impl Terminal {
     }
 
     pub fn run(
-        &self,
+        &mut self,
         string_buffer: Arc<Mutex<VecDeque<String>>>,
         condvar: Arc<Condvar>,
         commands_buffer: Arc<Mutex<VecDeque<Control>>>,
@@ -148,9 +152,8 @@ impl Terminal {
             .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
         control_guard.push_back(Control::Resize(width, height));
         drop(control_guard);
-        let mut paused = false;
-        'outer: loop {
-            if !paused {
+        while self.state != State::Stopped {
+            if self.state == State::Running {
                 let mut buffer_guard = string_buffer
                     .lock()
                     .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
@@ -171,14 +174,16 @@ impl Terminal {
                 .map_err(|e| MyError::Terminal(format!("{e:?}")))?
             {
                 let ev = event::read().map_err(|e| MyError::Terminal(format!("{e:?}")))?;
-                Self::handle_event(ev, &mut paused, &commands_buffer)
+                self.handle_event(ev, &commands_buffer)
                     .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+
+                // Check if user requested to exit
                 if commands_buffer
                     .lock()
                     .map_err(|e| MyError::Terminal(format!("{e:?}")))?
                     .contains(&Control::Exit)
                 {
-                    break 'outer;
+                    self.state = State::Stopped;
                 }
             }
         }

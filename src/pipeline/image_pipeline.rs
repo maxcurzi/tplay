@@ -1,6 +1,4 @@
-// use crate::common::errors::MyError;
-
-/// Pipeline stage for converting images to ASCII art.
+/// DOCUMENTATION Pipeline stage for converting images to ASCII art.
 use image::{DynamicImage, GrayImage};
 
 impl ImagePipeline {

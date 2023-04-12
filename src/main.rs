@@ -1,3 +1,4 @@
+/// Main doc
 mod cli;
 mod common;
 mod pipeline;
@@ -26,7 +27,7 @@ struct Args {
     /// Custom lookup char table
     #[arg(short, long, default_value = SHORT)]
     char_lookup: String,
-    /// Width modifier (emojis have 2x width, default to 1)
+    /// Experimental width modifier (emojis have 2x width)
     #[arg(long, default_value = "1")]
     w_mod: u32,
 }
@@ -62,7 +63,7 @@ fn main() -> Result<(), MyError> {
     let buffer_condvar_terminal = Arc::clone(&buffer_condvar);
     let buffer_controls_terminal = Arc::clone(&buffer_controls);
     let handle_thread_terminal = thread::spawn(move || {
-        let t2 = Terminal::new(args.input);
+        let mut t2 = Terminal::new(args.input);
         t2.run(
             buffer_terminal,
             buffer_condvar_terminal,

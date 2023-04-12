@@ -1,3 +1,4 @@
+/// ERROR DOCUMENTATION
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -7,7 +8,6 @@ pub enum MyError {
 
     // #[error("Pipeline error: {0}")]
     // Pipeline(String),
-
     #[error("Terminal error: {0}")]
     Terminal(String),
 }
@@ -15,7 +15,9 @@ pub enum MyError {
 pub const ERROR_OPENING_IMAGE: &str = "Error opening image";
 pub const ERROR_DECODING_IMAGE: &str = "Error decoding image";
 pub const ERROR_OPENING_VIDEO: &str = "Error opening video";
-pub const ERROR_INVALID_PATH: &str = "Invalid path";
+// pub const ERROR_INVALID_PATH: &str = "Invalid path";
 pub const ERROR_OPENING_GIF: &str = "Error opening GIF";
 pub const ERROR_READING_GIF_HEADER: &str = "Cannot read GIF header";
-pub const ERROR_UNSUPPORTED_FORMAT: &str = "Unsupported file format";
+// pub const ERROR_UNSUPPORTED_FORMAT: &str = "Unsupported file format";
+pub const ERROR_LOCK_CMD_BUFFER_FAILED: &str = "Failed to lock commands buffer";
+pub const ERROR_PARSE_DIGIT_FAILED: &str = "Failed to parse digit";

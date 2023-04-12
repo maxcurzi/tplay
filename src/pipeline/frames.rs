@@ -1,3 +1,4 @@
+/// FRAME ITERATOR DOCUMENTATION
 use crate::common::errors::*;
 use gif;
 use image::io::Reader as ImageReader;
@@ -10,7 +11,6 @@ pub enum FrameIterator {
     Image(Option<DynamicImage>),
     Video(VideoCapture),
     AnimatedGif {
-        // decoder: gif::Decoder<File>,
         frames: Vec<DynamicImage>,
         current_frame: usize,
     },
@@ -73,10 +73,12 @@ fn open_image(path: &Path) -> Result<FrameIterator, MyError> {
     Ok(FrameIterator::Image(Some(img)))
 }
 
-fn open_video(path: &str) -> Result<FrameIterator, MyError> {
-    let video = VideoCapture::from_file(path, opencv::videoio::CAP_ANY).map_err(|e| {
-        MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_VIDEO))
-    })?;
+fn open_video(path: &Path) -> Result<FrameIterator, MyError> {
+    let video = VideoCapture::from_file(
+        path.to_str().expect(ERROR_OPENING_VIDEO),
+        opencv::videoio::CAP_ANY,
+    )
+    .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_VIDEO)))?;
 
     if video
         .is_opened()
@@ -84,7 +86,7 @@ fn open_video(path: &str) -> Result<FrameIterator, MyError> {
     {
         Ok(FrameIterator::Video(video))
     } else {
-        Err(MyError::Application("Could not open the video".to_string()))
+        Err(MyError::Application(ERROR_OPENING_VIDEO.to_string()))
     }
 }
 
@@ -122,33 +124,11 @@ pub fn open_media<P: AsRef<Path>>(path: P) -> Result<FrameIterator, MyError> {
     let ext = path.extension().and_then(std::ffi::OsStr::to_str);
 
     match ext {
-        Some("png") | Some("jpg") | Some("jpeg") => open_image(path),
-        Some("mp4") | Some("avi") | Some("webm") | Some("mkv") => {
-            if let Some(path_str) = path.to_str() {
-                open_video(path_str)
-            } else {
-                Err(MyError::Application(format!(
-                    "{error}: {path:?}",
-                    error = ERROR_INVALID_PATH,
-                    path = path
-                )))
-            }
-        }
+        Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
+        | Some("jpeg") => open_image(path),
+        Some("mp4") | Some("avi") | Some("webm") | Some("mkv") | Some("mov") | Some("flv")
+        | Some("ogg") => open_video(path),
         Some("gif") => open_gif(path),
-        _ => {
-            // Unknown extension
-            // Try webcam
-            if let Some(path_str) = path.to_str() {
-                if path_str.contains("/dev/video") {
-                    open_video(path_str)
-                } else {
-                    Err(MyError::Application(format!(
-                        "Unable to identify media type for:{path_str}"
-                    )))
-                }
-            } else {
-                Err(MyError::Application(ERROR_UNSUPPORTED_FORMAT.to_string()))
-            }
-        }
+        _ => open_video(path), // Unknown extension, try to open as video anyway
     }
 }
