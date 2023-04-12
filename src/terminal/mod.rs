@@ -144,6 +144,7 @@ impl Terminal {
             | Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => {
+                self.state = State::Stopped;
                 let mut control_guard = commands_buffer.lock().expect(ERROR_LOCK_CMD_BUFFER_FAILED);
                 control_guard.push_back(Control::Exit);
             }
@@ -212,7 +213,19 @@ impl Terminal {
             .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
         control_guard.push_back(Control::Resize(width, height));
         drop(control_guard);
+
+        // Begin drawing and event loop
         while self.state != State::Stopped {
+            // Poll and handle events
+            if event::poll(Duration::from_millis(1))
+                .map_err(|e| MyError::Terminal(format!("{e:?}")))?
+            {
+                let ev = event::read().map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+                self.handle_event(ev, &commands_buffer)
+                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+            }
+
+            // Wait for next frame to draw
             let mut buffer_guard = string_buffer
                 .lock()
                 .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
@@ -225,24 +238,6 @@ impl Terminal {
             if let Some(s) = next_frame {
                 self.draw(&s)
                     .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
-            }
-
-            // Poll events
-            if event::poll(Duration::from_millis(1))
-                .map_err(|e| MyError::Terminal(format!("{e:?}")))?
-            {
-                let ev = event::read().map_err(|e| MyError::Terminal(format!("{e:?}")))?;
-                self.handle_event(ev, &commands_buffer)
-                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
-
-                // Check if user requested to exit
-                if commands_buffer
-                    .lock()
-                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?
-                    .contains(&Control::Exit)
-                {
-                    self.state = State::Stopped;
-                }
             }
         }
 

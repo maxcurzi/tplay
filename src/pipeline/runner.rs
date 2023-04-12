@@ -127,7 +127,6 @@ impl Runner {
             .as_micros()
             < 1_000_000_u64.checked_div(self.fps).unwrap_or(0).into()
         {
-            thread::sleep(Duration::from_millis(1));
             return false;
         }
         *time_count += Duration::from_micros(1_000_000_u64.checked_div(self.fps).unwrap_or(0));
@@ -168,6 +167,8 @@ impl Runner {
                 );
 
                 self.update_string_buffer(string_out);
+            } else {
+                thread::sleep(Duration::from_millis(3));
             }
         }
     }
@@ -181,6 +182,7 @@ impl Runner {
     /// A boolean indicating if the frame needs to be refreshed.
     fn process_control_commands(&mut self) -> bool {
         // Get the next control event
+        let mut needs_refresh = false;
         let mut buffer_controls_guard = self.commands_buffer.lock().unwrap();
         let control_event = buffer_controls_guard.pop_front();
         drop(buffer_controls_guard);
@@ -197,10 +199,10 @@ impl Runner {
                     self.set_char_map(char_map);
                 }
             }
-            return true;
+            needs_refresh = true;
         }
 
-        false
+        needs_refresh
     }
 
     /// Toggles the playback state of the Runner between `Running` and `Paused`.
