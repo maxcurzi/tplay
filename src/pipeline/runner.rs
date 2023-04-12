@@ -52,6 +52,8 @@ pub struct Runner {
     w_mod: u32,
     /// A collection of character maps available for the image pipeline.
     char_maps: Vec<Vec<char>>,
+    /// The last frame that was processed by the Runner.
+    last_frame: Option<DynamicImage>,
 }
 
 /// Enum representing the different control commands that can be sent to the Runner.
@@ -80,6 +82,8 @@ impl Runner {
     /// * `condvar` - A condition variable to notify that a new frame is ready.
     /// * `commands_buffer` - A shared buffer for sending control commands to the Runner.
     /// * `w_mod` - The width modifier (use 2 for emojis).
+    /// * `char_maps` - A collection of character maps available for the image pipeline.
+    /// * `last_frame` - The last frame that was processed by the Runner.
     pub fn init(
         pipeline: ImagePipeline,
         media: FrameIterator,
@@ -107,6 +111,7 @@ impl Runner {
             commands_buffer,
             w_mod,
             char_maps,
+            last_frame: None,
         }
     }
 
@@ -153,20 +158,16 @@ impl Runner {
     /// to the string buffer.
     pub fn run(&mut self) {
         let mut time_count = std::time::Instant::now();
-        let mut last_frame: Option<DynamicImage> = None;
 
         while self.state != State::Stopped {
             let frame_needs_refresh = self.process_control_commands();
 
             if self.should_process_frame(&mut time_count) {
                 let frame = self.get_current_frame();
-                let string_out = self.process_current_frame(
-                    frame.as_ref(),
-                    &mut last_frame,
-                    frame_needs_refresh,
-                );
-
-                self.update_string_buffer(string_out);
+                let string_out = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
+                if let Some(string_out) = string_out {
+                    self.update_string_buffer(string_out);
+                }
             } else {
                 thread::sleep(Duration::from_millis(3));
             }
@@ -189,6 +190,7 @@ impl Runner {
 
         // If we have a control event, process it
         if let Some(control) = control_event {
+            needs_refresh = true;
             match control {
                 Control::PauseContinue => self.toggle_pause(),
                 Control::Exit => self.state = State::Stopped,
@@ -199,9 +201,7 @@ impl Runner {
                     self.set_char_map(char_map);
                 }
             }
-            needs_refresh = true;
         }
-
         needs_refresh
     }
 
@@ -258,38 +258,36 @@ impl Runner {
     fn get_current_frame(&mut self) -> Option<DynamicImage> {
         match self.state {
             State::Running => self.media.next(),
-            State::Paused | State::Stopped => None,
+            State::Paused | State::Stopped => self.last_frame.clone(),
         }
     }
 
     /// Processes the current frame, if available, and returns the resulting ASCII string. If the
-    /// frame is not available or doesn't need to be processed, it returns an empty string.
+    /// frame is not available or doesn't need to be processed, it returns None.
     ///
     /// # Arguments
     ///
     /// * `frame` - An Option containing a reference to the current DynamicImage, or None.
-    /// * `last_frame` - A mutable reference to the last processed DynamicImage.
     /// * `refresh` - A boolean indicating if the frame needs to be refreshed.
     ///
     /// # Returns
     ///
-    /// A String containing the ASCII representation of the processed frame, or an empty string.
+    /// An Optional String containing the ASCII representation of the processed frame, or None
     fn process_current_frame(
         &mut self,
         frame: Option<&DynamicImage>,
-        last_frame: &mut Option<DynamicImage>,
         refresh: bool,
-    ) -> String {
+    ) -> Option<String> {
         match frame {
             Some(frame) => {
-                *last_frame = Some(frame.clone());
-                self.process_frame(frame)
+                self.last_frame = Some(frame.clone());
+                Some(self.process_frame(frame))
             }
             None => {
-                if last_frame.is_some() && refresh {
-                    self.process_frame(&last_frame.clone().unwrap())
+                if self.last_frame.is_some() && refresh {
+                    Some(self.process_frame(&self.last_frame.clone().unwrap()))
                 } else {
-                    String::new()
+                    None
                 }
             }
         }
