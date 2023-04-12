@@ -13,6 +13,11 @@ image = "0.24.6"
 ndarray = "0.15.6"
 opencv = "0.78.2"
 thiserror = "1.0.40"
+flame = "0.2.2"
+flamer = "0.3"
+fast_image_resize = "2.7.0"
+youtube_dl = "0.8.0"
+tempfile = "3.5.0"
 
 [dev-dependencies]
 reqwest = { version = "0.11.6", features = ["blocking"] }

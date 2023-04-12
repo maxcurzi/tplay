@@ -153,24 +153,22 @@ impl Terminal {
         control_guard.push_back(Control::Resize(width, height));
         drop(control_guard);
         while self.state != State::Stopped {
-            if self.state == State::Running {
-                let mut buffer_guard = string_buffer
-                    .lock()
-                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
-                (buffer_guard, _) = condvar
-                    .wait_timeout(buffer_guard, Duration::from_millis(100))
-                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
-                let next_frame = buffer_guard.pop_front();
-                drop(buffer_guard);
+            let mut buffer_guard = string_buffer
+                .lock()
+                .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+            (buffer_guard, _) = condvar
+                .wait_timeout(buffer_guard, Duration::from_millis(5))
+                .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
+            let next_frame = buffer_guard.pop_front();
+            drop(buffer_guard);
 
-                if let Some(s) = next_frame {
-                    self.draw(&s)
-                        .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
-                }
+            if let Some(s) = next_frame {
+                self.draw(&s)
+                    .map_err(|e| MyError::Terminal(format!("{e:?}")))?;
             }
 
             // Poll events
-            if event::poll(Duration::from_millis(5))
+            if event::poll(Duration::from_millis(1))
                 .map_err(|e| MyError::Terminal(format!("{e:?}")))?
             {
                 let ev = event::read().map_err(|e| MyError::Terminal(format!("{e:?}")))?;

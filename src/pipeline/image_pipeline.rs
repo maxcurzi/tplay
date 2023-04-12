@@ -1,5 +1,7 @@
 /// DOCUMENTATION Pipeline stage for converting images to ASCII art.
+use fast_image_resize as fr;
 use image::{DynamicImage, GrayImage};
+use std::num::NonZeroU32;
 
 impl ImagePipeline {
     // Constructs a new ImagePipeline with the given scale, character lookup table, and average window size.
@@ -14,16 +16,34 @@ impl ImagePipeline {
         self
     }
 
-    // Converts the given image to grayscale and scales it according to the scale stored in this ImagePipeline.
-    pub fn process(&self, input: &DynamicImage) -> GrayImage {
-        input
-            .grayscale()
-            .resize_exact(
-                self.target_resolution.0,
-                self.target_resolution.1,
-                image::imageops::FilterType::Nearest,
-            )
-            .into_luma8()
+    // Scale the image according to the scale stored in this ImagePipeline.
+    pub fn process(&self, img: &DynamicImage) -> GrayImage {
+        let width = NonZeroU32::new(img.width()).unwrap();
+        let height = NonZeroU32::new(img.height()).unwrap();
+        let src_image = fr::Image::from_vec_u8(
+            width,
+            height,
+            img.to_owned().into_luma8().to_vec(),
+            fr::PixelType::U8,
+        )
+        .unwrap();
+        let mut dst_image = fr::Image::new(
+            NonZeroU32::new(self.target_resolution.0).unwrap(),
+            NonZeroU32::new(self.target_resolution.1).unwrap(),
+            fr::PixelType::U8,
+        );
+        let mut dst_view = dst_image.view_mut();
+
+        let mut resizer = fr::Resizer::new(fr::ResizeAlg::Nearest);
+        resizer.resize(&src_image.view(), &mut dst_view).unwrap();
+
+        let dst_image = dst_image.into_vec();
+        GrayImage::from_vec(
+            self.target_resolution.0,
+            self.target_resolution.1,
+            dst_image,
+        )
+        .unwrap()
     }
 
     // Converts the given grayscale image to ASCII art using the character lookup table stored in this ImagePipeline.

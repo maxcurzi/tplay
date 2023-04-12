@@ -1,14 +1,18 @@
 /// Main doc
 mod cli;
 mod common;
+mod downloader;
 mod pipeline;
 mod terminal;
 use crate::common::errors::MyError;
 use crate::pipeline::char_maps::SHORT;
 use crate::pipeline::image_pipeline::ImagePipeline;
 use clap::Parser;
+
 use pipeline::frames::{open_media, FrameIterator};
+
 use pipeline::runner;
+
 use pipeline::runner::Control;
 use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex};
@@ -19,10 +23,10 @@ use terminal::Terminal;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Name of the file/stream to process
-    #[arg(short, long, required = true, index = 1)]
+    #[arg(required = true, index = 1)]
     input: String,
     /// Maximum fps
-    #[arg(short, long, default_value = "30")]
+    #[arg(short, long, default_value = "60")]
     fps: u64,
     /// Custom lookup char table
     #[arg(short, long, default_value = SHORT)]

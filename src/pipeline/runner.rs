@@ -1,6 +1,6 @@
 use image::DynamicImage;
 
-use crate::pipeline::char_maps::{LONG, SHORT, SHORT_EXT};
+use crate::pipeline::char_maps::{LONG, LONG_2, SHORT, SHORT_EXT};
 
 use super::frames::FrameIterator;
 use super::image_pipeline::ImagePipeline;
@@ -37,7 +37,7 @@ pub enum Control {
     SetCharMap(u32),
     Resize(u16, u16),
 }
-const MAX_CAPACITY: usize = 10;
+const MAX_CAPACITY: usize = 1;
 
 impl Runner {
     pub fn init(
@@ -55,6 +55,7 @@ impl Runner {
             SHORT.to_string().chars().collect(),
             SHORT_EXT.to_string().chars().collect(),
             LONG.to_string().chars().collect(),
+            LONG_2.to_string().chars().collect(),
         ];
 
         Self {
@@ -77,7 +78,7 @@ impl Runner {
             .as_micros()
             < 1_000_000_u64.checked_div(self.fps).unwrap_or(0).into()
         {
-            thread::sleep(std::time::Duration::from_millis(1));
+            thread::sleep(Duration::from_millis(1));
             return false;
         }
         *time_count += Duration::from_micros(1_000_000_u64.checked_div(self.fps).unwrap_or(0));
@@ -117,18 +118,43 @@ impl Runner {
                             (width / self.w_mod as u16).into(),
                             height.into(),
                         );
-                        self.internal_string_buffer.drain(..);
                         refresh = true;
                     }
                     Control::SetCharMap(char_map) => {
                         self.pipeline.char_lookup = self.char_maps
                             [(char_map % self.char_maps.len() as u32) as usize]
                             .clone();
+                        refresh = true;
                     }
                 }
             }
             drop(buffer_controls_guard);
-            if self.internal_string_buffer.len() < MAX_CAPACITY {
+            // if self.internal_string_buffer.len() < MAX_CAPACITY {
+            //     // Convert new frame
+            //     let frame = match self.state {
+            //         State::Running => self.media.next(),
+            //         State::Paused | State::Stopped => None,
+            //     };
+            //     if let Some(frame) = frame {
+            //         last_frame = Some(frame.clone());
+            //         self.process_frame(&frame);
+            //     } else if last_frame.is_some() && refresh {
+            //         self.process_frame(&last_frame.clone().unwrap());
+            //         refresh = false;
+            //     }
+            // } else {
+            //     // String buffer isn't being consumed fast enough, remove oldest frame
+            //     self.internal_string_buffer.pop_front();
+            // }
+
+            if self.time_to_send_next_frame(&mut time_count)
+                && (self.state == State::Running || self.state == State::Paused)
+            {
+                // Do not buffer more than one frame, and
+                // discard it if it's not read. Keeps playback stable but will
+                // skip frames if the terminal is too slow
+                self.internal_string_buffer.drain(..);
+
                 // Convert new frame
                 let frame = match self.state {
                     State::Running => self.media.next(),
@@ -141,15 +167,11 @@ impl Runner {
                     self.process_frame(&last_frame.clone().unwrap());
                     refresh = false;
                 }
-            }
-
-            if self.time_to_send_next_frame(&mut time_count)
-                && !self.internal_string_buffer.is_empty()
-                && (self.state == State::Running || self.state == State::Paused)
-            {
                 let mut buffer_guard = self.string_buffer.lock().unwrap();
-                buffer_guard.push_back(self.internal_string_buffer.pop_front().unwrap());
-                self.condvar.notify_one();
+                if self.internal_string_buffer.len() > 0 {
+                    buffer_guard.push_back(self.internal_string_buffer.pop_back().unwrap());
+                    self.condvar.notify_one();
+                }
             }
         }
     }

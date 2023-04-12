@@ -2,8 +2,8 @@
 use crate::common::errors::*;
 use gif;
 use image::io::Reader as ImageReader;
-use image::{DynamicImage, ImageBuffer, Rgb};
-use opencv::{core::Vec3b, imgproc, prelude::*, videoio::VideoCapture};
+use image::{DynamicImage, ImageBuffer};
+use opencv::{imgproc, prelude::*, videoio::VideoCapture};
 use std::fs::File;
 use std::path::Path;
 
@@ -38,26 +38,23 @@ impl Iterator for FrameIterator {
 fn capture_video_frame(video: &mut VideoCapture) -> Option<DynamicImage> {
     let mut frame = Mat::default();
     if video.read(&mut frame).unwrap_or(false) && !frame.empty() {
-        convert_frame_to_rgb(&frame)
+        convert_frame_to_grayscale(&frame)
     } else {
         None
     }
 }
 
-fn convert_frame_to_rgb(frame: &Mat) -> Option<DynamicImage> {
-    let mut rgb_frame = Mat::default();
-    if imgproc::cvt_color(&frame, &mut rgb_frame, imgproc::COLOR_BGR2RGB, 0).is_ok() {
-        let rows = rgb_frame.rows() as u32;
-        let cols = rgb_frame.cols() as u32;
+fn convert_frame_to_grayscale(frame: &Mat) -> Option<DynamicImage> {
+    let mut gray_frame = Mat::default();
+    if imgproc::cvt_color(&frame, &mut gray_frame, imgproc::COLOR_BGR2GRAY, 0).is_ok() {
+        let rows = gray_frame.rows() as u32;
+        let cols = gray_frame.cols() as u32;
 
-        let img = ImageBuffer::from_fn(cols, rows, |x, y| {
-            let pixel: Vec3b = *rgb_frame
-                .at_2d(y as i32, x as i32)
-                .unwrap_or(&Vec3b::default());
-            Rgb([pixel[0], pixel[1], pixel[2]])
-        });
+        let data = gray_frame.data_typed::<u8>().unwrap_or_default();
+        let data_vec = data.to_owned(); // Clone the underlying data
+        let img = ImageBuffer::from_raw(cols, rows, data_vec).unwrap_or_default();
 
-        Some(DynamicImage::ImageRgb8(img))
+        Some(DynamicImage::ImageLuma8(img))
     } else {
         None
     }
