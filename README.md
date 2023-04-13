@@ -9,7 +9,7 @@ View images, videos, webcam, etc directly in the terminal as ASCII art
 
 ## Table of Contents
 
-- [Project Title](#project-title)
+- [Terminal Media Player](#terminal-media-player)
   - [Table of Contents](#table-of-contents)
     - [Who is it for?](#who-is-it-for)
     - [Features](#features)
@@ -55,20 +55,21 @@ View images, videos, webcam, etc directly in the terminal as ASCII art
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
-### Prerequisites
+## Prerequisites
+Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
-Currently the project is only tested on Linux, but it should work on other platforms as well.
-Make sure you have installed the following:
-- OpenCV 4
-- ffmpeg
-- yt-dlp (optional, for YouTube support)
+The following dependencies are also required:
+[OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv)
+
+Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
 ## Development:
-You may need to sudo apt install the following (Ubuntu), TBC:
+You may need to install the following packages on some Linux distributions:
+`libssl-dev` (to run tests)
 `libopencv-dev`
 `libstdc++-12-dev`
 `gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly`
-`clang libclang-dev`
+ `clang libclang-dev`
 
 ## Installation
 
@@ -81,37 +82,41 @@ git clone https://github.com/maxcurzi/tplay.git
 # Change to the project directory
 cd tplay
 
-# Build the project
+# (optional) Build the project
 cargo build
 
-# Run the project (use --release for faster performance)
-cargo run --release -- [FILE] [options]
-
-# Run the tests
+# (optional) Run the tests
 cargo test
+
+# Run the project (use --release for faster performance)
+cargo run --release -- <media> [options]
 ```
 
-or install it as a binary
 You can install the `tplay` command line tool by running the following command:
 
 ```bash
 # Install the tplay command line tool
 cargo install tplay
 ```
+So that you can run it from anywhere as
+```bash
+# Install the tplay command line tool
+tplay <media> [options]
+```
 ## Usage
-`tplay input [options]`
+`tplay <media> [options]`
 
 | Argument | Description |
 |--------|-------------|
-| `input` | Name of the file or stream to be processed (required). |
+| `media` | Name of the file or stream to be processed (required). |
 | `-f`, `--fps` | Maximum frames per second for the output (default: 60). |
 | `-c`, `--char_map` | Custom lookup character table to use for the output (default: ` .:-=+*#%@`). |
 | `-w`, `--w_mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
 
 
 ```bash
-# Run it
-tplay [input] [options]
+# Run it (use `cargo run --release --` if you didn't install it as tplay)
+tplay <media> [options]
 
 # Example: local image
 tplay ./image.png
@@ -150,12 +155,13 @@ tplay /dev/video0 --fps 30
 A lot of people have made their own ASCII video players:
 https://github.com/search?q=ascii+player&type=repositories
 
-
-## Documentation
-documentation
-
 ## Contributing
-contribution guidelines
+Contributions are welcome! Please open an issue or submit a pull request.
+Ideally I'd like to implement the following features:
+- Colors
+- Sound playback
+
+Let me know if you have any other ideas!
 
 ## License
 This project is licensed under the GNU GPLv3 License - see the [LICENSE](LICENSE) file for details.
@@ -163,6 +169,4 @@ This project is licensed under the GNU GPLv3 License - see the [LICENSE](LICENSE
 ## Why?
 _Your Scientists Were So Preoccupied With Whether Or Not They Could, They Didn’t Stop To Think If They Should_
 
-
-
-
+Mostly did it for fun while learning Rust. I also wanted to see if it was possible to make a video player that could run in the terminal. I think it's pretty cool that you can play videos in the terminal now. I hope you enjoy it too!
