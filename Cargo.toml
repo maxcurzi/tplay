@@ -2,6 +2,18 @@
 name = "tplay"
 version = "0.1.0"
 edition = "2021"
+authors = ["Max Curzi <massimiliano.curzi@gmail.com>"]
+description = "A terminal based media player that visualizes images and videos as ASCII art."
+repository = "www.github.com/maxcurzi/tplay"
+license-file = "LICENSE"
+readme = "README.md"
+keywords = ["media-player", "ASCII-art", "terminal", "youtube", "video"]
+categories = [
+    "command-line-utilities",
+    "multimedia",
+    "multimedia::video",
+    "multimedia::images",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
