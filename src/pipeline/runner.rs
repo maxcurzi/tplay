@@ -94,7 +94,7 @@ impl Runner {
         w_mod: u32,
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
-            pipeline.char_lookup.clone(),
+            pipeline.char_map.clone(),
             SHORT1.to_string().chars().collect(),
             SHORT2.to_string().chars().collect(),
             LONG1.to_string().chars().collect(),
@@ -232,7 +232,7 @@ impl Runner {
     ///
     /// * `char_map` - The index of the character map to use.
     fn set_char_map(&mut self, char_map: u32) {
-        self.pipeline.char_lookup =
+        self.pipeline.char_map =
             self.char_maps[(char_map % self.char_maps.len() as u32) as usize].clone();
     }
 

@@ -105,10 +105,10 @@ tplay https://www.youtube.com/watch?v=dQw4w9WgXcQ --fps 30
 tplay http://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4 --fps 30
 
 # Example: YouTube video - 30fps, with different char maps
-tplay https://www.youtube.com/watch?v=fShlVhCfHig --fps 30 --char-lookup " ░▒▓█"
+tplay https://www.youtube.com/watch?v=fShlVhCfHig --fps 30 --char-map " ░▒▓█"
 
 # Example: YouTube video - 30fps, with different char maps (use w-mod to adjust width when using emoji-based char maps)
-tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --fps 30 --char-lookup "🍎🍏" --w-mod 2
+tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --fps 30 --char-map "🍎🍏" --w-mod 2
 
 # Example: webcam on Linux (YMMV on other OSes)
 tplay /dev/video0 --fps 30

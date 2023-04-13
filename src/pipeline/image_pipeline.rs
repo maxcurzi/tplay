@@ -10,7 +10,7 @@ use std::num::NonZeroU32;
 /// conversion.
 pub struct ImagePipeline {
     pub target_resolution: (u32, u32),
-    pub char_lookup: Vec<char>,
+    pub char_map: Vec<char>,
 }
 
 impl ImagePipeline {
@@ -21,12 +21,12 @@ impl ImagePipeline {
     ///
     /// * `target_resolution` - A tuple of two u32 integers representing the target width and
     ///   height.
-    /// * `char_lookup` - A vector of characters to be used as the lookup table for ASCII
+    /// * `char_map` - A vector of characters to be used as the lookup table for ASCII
     ///   conversion.
-    pub fn new(target_resolution: (u32, u32), char_lookup: Vec<char>) -> Self {
+    pub fn new(target_resolution: (u32, u32), char_map: Vec<char>) -> Self {
         Self {
             target_resolution,
-            char_lookup,
+            char_map,
         }
     }
 
@@ -106,8 +106,8 @@ impl ImagePipeline {
         for y in 0..height {
             output.extend((0..width).map(|x| {
                 let lum = input.get_pixel(x, y)[0] as u32;
-                let lookup_idx = self.char_lookup.len() * lum as usize / (u8::MAX as usize + 1);
-                self.char_lookup[lookup_idx]
+                let lookup_idx = self.char_map.len() * lum as usize / (u8::MAX as usize + 1);
+                self.char_map[lookup_idx]
             }));
             if y < height - 1 {
                 output.push('\r');
@@ -142,7 +142,7 @@ mod tests {
     fn test_new() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
         assert_eq!(image.target_resolution, (120, 80));
-        assert_eq!(image.char_lookup, vec!['a', 'b', 'c']);
+        assert_eq!(image.char_map, vec!['a', 'b', 'c']);
     }
 
     #[test]

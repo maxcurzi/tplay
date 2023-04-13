@@ -42,7 +42,7 @@ struct Args {
     fps: u64,
     /// Custom lookup char table
     #[arg(short, long, default_value = SHORT1)]
-    char_lookup: String,
+    char_map: String,
     /// Experimental width modifier (emojis have 2x width)
     #[arg(long, default_value = "1")]
     w_mod: u32,
@@ -67,7 +67,7 @@ fn main() -> Result<(), MyError> {
     let buffer_controls_pipeline = Arc::clone(&buffer_controls);
     let handle_thread_pipeline = thread::spawn(move || {
         let mut runner = runner::Runner::init(
-            ImagePipeline::new((80, 24), args.char_lookup.chars().collect()),
+            ImagePipeline::new((80, 24), args.char_map.chars().collect()),
             media,
             args.fps,
             buffer_pipeline,
