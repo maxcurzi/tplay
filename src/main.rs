@@ -19,14 +19,13 @@ use crate::common::errors::MyError;
 use crate::pipeline::char_maps::SHORT1;
 use crate::pipeline::image_pipeline::ImagePipeline;
 use clap::Parser;
+use std::sync::mpsc::channel;
 
 use pipeline::frames::{open_media, FrameIterator};
 
 use pipeline::runner;
 
 use pipeline::runner::Control;
-use std::collections::VecDeque;
-use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use terminal::Terminal;
 
@@ -57,39 +56,27 @@ fn main() -> Result<(), MyError> {
 
     let media: FrameIterator = open_media(args.input.clone())?;
 
-    let buffer = Arc::new(Mutex::new(VecDeque::new()));
-    let buffer_condvar = Arc::new(Condvar::new());
-    let buffer_controls = Arc::new(Mutex::new(VecDeque::<Control>::new()));
+    // Set up a channel for passing frames and controls
+    let (tx_frames, rx_frames) = channel::<String>();
+    let (tx_controls, rx_controls) = channel::<Control>();
 
     // Launch Pipeline Thread
-    let buffer_pipeline = Arc::clone(&buffer);
-    let buffer_condvar_pipeline = Arc::clone(&buffer_condvar);
-    let buffer_controls_pipeline = Arc::clone(&buffer_controls);
     let handle_thread_pipeline = thread::spawn(move || {
         let mut runner = runner::Runner::init(
             ImagePipeline::new((80, 24), args.char_map.chars().collect()),
             media,
             args.fps,
-            buffer_pipeline,
-            buffer_condvar_pipeline,
-            buffer_controls_pipeline,
+            tx_frames,
+            rx_controls,
             args.w_mod,
         );
-        runner.run();
+        runner.run().expect("Error running pipeline thread");
     });
 
     // Launch Terminal Thread
-    let buffer_terminal = Arc::clone(&buffer);
-    let buffer_condvar_terminal = Arc::clone(&buffer_condvar);
-    let buffer_controls_terminal = Arc::clone(&buffer_controls);
     let handle_thread_terminal = thread::spawn(move || {
-        let mut t2 = Terminal::new(args.input);
-        t2.run(
-            buffer_terminal,
-            buffer_condvar_terminal,
-            buffer_controls_terminal,
-        )
-        .unwrap();
+        let mut t2 = Terminal::new(args.input, rx_frames, tx_controls);
+        t2.run().expect("Error running terminal thread");
     });
 
     // Wait for threads to finish

@@ -7,13 +7,12 @@
 //! character maps during playback.
 use image::DynamicImage;
 
+use crate::common::errors::{MyError, ERROR_CHANNEL};
 use crate::pipeline::char_maps::{LONG1, LONG2, SHORT1, SHORT2};
 
 use super::frames::FrameIterator;
 use super::image_pipeline::ImagePipeline;
-use std::collections::VecDeque;
-use std::sync::Condvar;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
@@ -42,12 +41,10 @@ pub struct Runner {
     fps: u64,
     /// The current playback state of the Runner.
     state: State,
-    /// A shared buffer for sending processed frames as strings.
-    string_buffer: Arc<Mutex<VecDeque<String>>>,
-    /// A condition variable to notify that a new frame is ready.
-    condvar: Arc<Condvar>,
-    /// A shared buffer for sending control commands to the Runner.
-    commands_buffer: Arc<Mutex<VecDeque<Control>>>,
+    /// A channel for receiving processed frames as strings.
+    tx_frames: Sender<String>,
+    /// A channel for sending control commands to the Runner.
+    rx_controls: Receiver<Control>,
     /// The width modifier (use 2 for emojis).
     w_mod: u32,
     /// A collection of character maps available for the image pipeline.
@@ -88,9 +85,9 @@ impl Runner {
         pipeline: ImagePipeline,
         media: FrameIterator,
         fps: u64,
-        string_buffer: Arc<Mutex<VecDeque<String>>>,
-        condvar: Arc<Condvar>,
-        commands_buffer: Arc<Mutex<VecDeque<Control>>>,
+        tx_frames: Sender<String>,
+        rx_controls: Receiver<Control>,
+
         w_mod: u32,
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
@@ -106,9 +103,8 @@ impl Runner {
             media,
             fps,
             state: State::Running,
-            string_buffer,
-            condvar,
-            commands_buffer,
+            tx_frames,
+            rx_controls,
             w_mod,
             char_maps,
             last_frame: None,
@@ -156,7 +152,7 @@ impl Runner {
     /// The main function responsible for running the animation. It processes control commands,
     /// updates the state of the Runner, processes frames, and sends the resulting ASCII strings
     /// to the string buffer.
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), MyError> {
         let mut time_count = std::time::Instant::now();
 
         while self.state != State::Stopped {
@@ -166,12 +162,15 @@ impl Runner {
                 let frame = self.get_current_frame();
                 let string_out = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
                 if let Some(string_out) = string_out {
-                    self.update_string_buffer(string_out);
+                    self.tx_frames.send(string_out).map_err(|e| {
+                        MyError::Application(format!("{error}: {e:?}", error = ERROR_CHANNEL))
+                    })?;
                 }
             } else {
                 thread::sleep(Duration::from_millis(3));
             }
         }
+        Ok(())
     }
 
     /// Processes control commands from the commands buffer and updates the Runner state and
@@ -184,12 +183,10 @@ impl Runner {
     fn process_control_commands(&mut self) -> bool {
         // Get the next control event
         let mut needs_refresh = false;
-        let mut buffer_controls_guard = self.commands_buffer.lock().unwrap();
-        let control_event = buffer_controls_guard.pop_front();
-        drop(buffer_controls_guard);
+        let control_event = self.rx_controls.recv_timeout(Duration::from_millis(1));
 
         // If we have a control event, process it
-        if let Some(control) = control_event {
+        if let Ok(control) = control_event {
             needs_refresh = true;
             match control {
                 Control::PauseContinue => self.toggle_pause(),
@@ -291,17 +288,5 @@ impl Runner {
                 }
             }
         }
-    }
-
-    /// Updates the string buffer with the provided ASCII string and notifies the condition
-    /// variable that a new frame is available.
-    ///
-    /// # Arguments
-    ///
-    /// * `string_out` - A String containing the ASCII representation of the processed frame.
-    fn update_string_buffer(&self, string_out: String) {
-        let mut buffer_guard = self.string_buffer.lock().unwrap();
-        buffer_guard.push_back(string_out);
-        self.condvar.notify_one();
     }
 }

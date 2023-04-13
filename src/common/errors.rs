@@ -1,6 +1,7 @@
 //! This module defines the custom error type `MyError` used throughout the application,
 //! as well as various error message constants.
 
+use std::io;
 use thiserror::Error;
 
 /// Custom error type used throughout the application.
@@ -17,6 +18,18 @@ pub enum MyError {
     Terminal(String),
 }
 
+impl From<MyError> for io::Error {
+    fn from(error: MyError) -> Self {
+        io::Error::new(io::ErrorKind::Other, error.to_string())
+    }
+}
+
+impl From<io::Error> for MyError {
+    fn from(error: io::Error) -> Self {
+        MyError::Terminal(format!("{}", error))
+    }
+}
+
 /// Error message for issues related to opening an image.
 pub const ERROR_OPENING_IMAGE: &str = "Error opening image";
 /// Error message for issues related to decoding an image.
@@ -27,7 +40,7 @@ pub const ERROR_OPENING_VIDEO: &str = "Error opening video";
 pub const ERROR_OPENING_GIF: &str = "Error opening GIF";
 /// Error message for issues related to reading a GIF header.
 pub const ERROR_READING_GIF_HEADER: &str = "Cannot read GIF header";
-/// Error message for issues related to locking the commands buffer.
-pub const ERROR_LOCK_CMD_BUFFER_FAILED: &str = "Failed to lock commands buffer";
+
 /// Error message for issues related to parsing a digit.
 pub const ERROR_PARSE_DIGIT_FAILED: &str = "Failed to parse digit";
+pub const ERROR_CHANNEL: &str = "Error during channel communication";
