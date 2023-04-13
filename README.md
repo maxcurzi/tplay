@@ -83,11 +83,19 @@ You can install the `tplay` command line tool by running the following command:
 cargo install tplay
 ```
 ## Usage
-`tplay [file] [options]`
+`tplay input [options]`
+
+| Argument | Description |
+|--------|-------------|
+| `input` | Name of the file or stream to be processed (required). |
+| `-f`, `--fps` | Maximum frames per second for the output (default: 60). |
+| `-c`, `--char_map` | Custom lookup character table to use for the output (default: ` .:-=+*#%@`). |
+| `-w`, `--w_mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
+
 
 ```bash
 # Run it
-tplay [media] [options]
+tplay [input] [options]
 
 # Example: local image
 tplay ./image.png
