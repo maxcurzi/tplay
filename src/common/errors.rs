@@ -1,6 +1,5 @@
 //! This module defines the custom error type `MyError` used throughout the application,
 //! as well as various error message constants.
-
 use std::io;
 use thiserror::Error;
 

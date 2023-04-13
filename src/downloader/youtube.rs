@@ -5,7 +5,6 @@
 //! The function returns a temporary file path to the downloaded video.
 //! The temporary file is deleted when the file is closed.
 //! The temporary file is created in a temporary directory (OS dependent).
-
 use std::process::Command;
 use std::process::Stdio;
 use tempfile;
