@@ -18,9 +18,9 @@ exclude = [
     ".github/",
     ".vscode/",
     ".gitignore",
-    " Cargo.lock",
-    " Cargo.toml.orig",
-    " Makefile.toml",
+    "Cargo.lock",
+    "Cargo.toml.orig",
+    "Makefile.toml",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
