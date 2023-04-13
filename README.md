@@ -1,7 +1,8 @@
+<img src="https://user-images.githubusercontent.com/30084738/231727365-defc7606-59aa-48f5-b8c4-b7ec4664eac1.jpeg" alt="Image description" width="80" height="80">
+
 # Terminal Media Player
 
 [![Crates.io](https://img.shields.io/crates/v/terminal-media-player.svg)](https://crates.io/crates/terminal-media-player)
-[![Docs.rs](https://docs.rs/terminal-media-player/badge.svg)](https://docs.rs/terminal-media-player)
 [![License](https://img.shields.io/crates/l/terminal-media-player.svg)](https://github.com/maxcurzi/tplay/blob/main/LICENSE)
 
 View images, videos, webcam, etc directly in the terminal as ASCII art
@@ -23,25 +24,31 @@ View images, videos, webcam, etc directly in the terminal as ASCII art
 
 ## Who is it for?
 - You _really_ don't like graphical applications or are working on a computer without graphical capabilities.
+- You are looking for a quick way to convert any visual media to ASCII art.
 - You want to watch a video in the terminal, but you don't want to use `mpv` or `vlc` because they're too mainstream.
 - You like ASCII art so much that you don't need sound to enjoy a good movie.
-- Your screen is full of terminal windows and you want some entertainment.
-- You are looking for a quick way to convert any visual media to ASCII art.
 - You want to show off your terminal skills to your friends and make them think you're a hacker.
 
 ## Features
 - [x] Converts and shows any media to ASCII art in the terminal
-- [x] Play webcam video output in the terminal
-- [x] Play images in the terminal
-- [x] Play gifs in the terminal
-- [x] Play any video (files/streams/devices) in the terminal
-- [x] Play YouTube videos in the terminal
-- [x] Play videos/gifs in the terminal at any frame rate
-- [x] Play media in the terminal at any resolution
-- [x] Play media in the terminal at any aspect ratio
-- [x] Play media in the terminal with any character set supported by your terminal
-- [x] Handy pause/unpause and char map selection controls
-- [x] Supports all major video/image formats
+- [x] Supports images/gifs/videos/webcam and YouTube links
+- [x] Any resolution, aspect ratio, and framerate
+- [x] Use any character set as supported by your terminal
+- [x] Handy pause/unpause and char map selection [controls](#playback-commands)
+- [ ] Colors (not yet!)
+- [ ] Sound (not yet!)
+
+
+### Live update when updating character size
+![font_size](https://user-images.githubusercontent.com/30084738/231709636-f764862a-d826-4a2e-b54d-6623d145ef41.gif)
+### On-the-fly character map selection
+![char_maps](https://user-images.githubusercontent.com/30084738/231709640-496b84ed-3807-4f62-b6b7-ebf9dcbb7bba.gif)
+### Dynamic resize
+![resize](https://user-images.githubusercontent.com/30084738/231709632-25af0fde-928e-46c2-bf42-f78a439e6594.gif)
+### Emojis
+![emojis](https://user-images.githubusercontent.com/30084738/231709625-084a496c-6557-4398-9361-0ba6ab41a02d.gif)
+### Webcam support
+![webcam](https://user-images.githubusercontent.com/30084738/231712280-d1fe42ae-f430-48f8-a561-83f5609357ee.gif)
 
 
 ## Getting Started
@@ -50,9 +57,18 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-What things you need to install or have installed on your system to use this project.
+Currently the project is only tested on Linux, but it should work on other platforms as well.
+Make sure you have installed the following:
+- OpenCV 4
+- ffmpeg
+- yt-dlp (optional, for YouTube support)
 
-
+## Development:
+You may need to sudo apt install the following (Ubuntu), TBC:
+`libopencv-dev`
+`libstdc++-12-dev`
+`gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly`
+`clang libclang-dev`
 
 ## Installation
 
@@ -116,7 +132,7 @@ tplay http://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4 --fps 30
 tplay https://www.youtube.com/watch?v=fShlVhCfHig --fps 30 --char-map " ░▒▓█"
 
 # Example: YouTube video - 30fps, with different char maps (use w-mod to adjust width when using emoji-based char maps)
-tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --fps 30 --char-map "🍎🍏" --w-mod 2
+tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --fps 30 --char-map "🍎🍏❤️😊" --w-mod 2
 
 # Example: webcam on Linux (YMMV on other OSes)
 tplay /dev/video0 --fps 30
@@ -128,7 +144,12 @@ tplay /dev/video0 --fps 30
 - `0-9` - change char map
 
 ## Known Issues
-known issues
+- Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator.
+
+## Alternatives
+A lot of people have made their own ASCII video players:
+https://github.com/search?q=ascii+player&type=repositories
+
 
 ## Documentation
 documentation
