@@ -149,7 +149,7 @@ mod tests {
     fn test_process() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
         let input = download_image(
-            "https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
+            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
         )
         .expect("Failed to download image");
 
@@ -162,7 +162,7 @@ mod tests {
     fn test_to_ascii_ext() {
         let image = ImagePipeline::new((120, 80), SHORT2.chars().collect());
         let input = download_image(
-            "https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
+            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
         )
         .expect("Failed to download image");
         let output = image.to_ascii(&image.process(&input));
@@ -173,7 +173,7 @@ mod tests {
     fn test_to_ascii() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
         let input = download_image(
-            "https://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
+            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
         )
         .expect("Failed to download image");
         let output = image.to_ascii(&image.process(&input));
