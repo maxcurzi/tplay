@@ -45,28 +45,18 @@ See https://github.com/yt-dlp/yt-dlp/wiki/Installation"
     let temp_file = tempfile::Builder::new()
         .prefix("my_temp_file_")
         .suffix(".webm")
-        .tempfile()
-        .map_err(|e| MyError::Application(format!("{e:?}")))?;
+        .tempfile()?;
 
     let output = Command::new("yt-dlp")
         .arg(url)
         .arg("-o")
         .arg("-")
-        .stdout(Stdio::from(
-            temp_file
-                .as_file()
-                .try_clone()
-                .map_err(|e| MyError::Application(format!("{e:?}")))?,
-        ))
-        .output()
-        .map_err(|e| MyError::Application(format!("{e:?}")))?;
+        .stdout(Stdio::from(temp_file.as_file().try_clone()?))
+        .output()?;
 
     if output.status.success() {
         // Flush the buffer to ensure that all the data is written to disk
-        temp_file
-            .as_file()
-            .sync_all()
-            .map_err(|e| MyError::Application(format!("{e:?}")))?;
+        temp_file.as_file().sync_all()?;
 
         // Get the path to the temporary file
         let temp_file_path = temp_file.into_temp_path();

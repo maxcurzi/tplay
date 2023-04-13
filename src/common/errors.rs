@@ -26,12 +26,16 @@ impl From<MyError> for io::Error {
 
 impl From<io::Error> for MyError {
     fn from(error: io::Error) -> Self {
-        MyError::Terminal(format!("{}", error))
+        MyError::Application(format!("{error}"))
     }
 }
 
-/// Error message for issues related to opening an image.
-pub const ERROR_OPENING_IMAGE: &str = "Error opening image";
+impl From<opencv::Error> for MyError {
+    fn from(error: opencv::Error) -> Self {
+        MyError::Application(format!("{error}"))
+    }
+}
+
 /// Error message for issues related to decoding an image.
 pub const ERROR_DECODING_IMAGE: &str = "Error decoding image";
 /// Error message for issues related to opening a video.
@@ -40,7 +44,7 @@ pub const ERROR_OPENING_VIDEO: &str = "Error opening video";
 pub const ERROR_OPENING_GIF: &str = "Error opening GIF";
 /// Error message for issues related to reading a GIF header.
 pub const ERROR_READING_GIF_HEADER: &str = "Cannot read GIF header";
-
 /// Error message for issues related to parsing a digit.
 pub const ERROR_PARSE_DIGIT_FAILED: &str = "Failed to parse digit";
+/// Error message for issue related to channel communication.
 pub const ERROR_CHANNEL: &str = "Error during channel communication";

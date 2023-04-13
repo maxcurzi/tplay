@@ -126,12 +126,9 @@ fn convert_frame_to_grayscale(frame: &Mat) -> Option<DynamicImage> {
 /// A `Result` containing a `FrameIterator` if the image file is successfully opened, or a
 /// `MyError` if an error occurs.
 fn open_image(path: &Path) -> Result<FrameIterator, MyError> {
-    let img = ImageReader::open(path)
-        .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_IMAGE)))?
-        .decode()
-        .map_err(|e| {
-            MyError::Application(format!("{error}: {e:?}", error = ERROR_DECODING_IMAGE))
-        })?;
+    let img = ImageReader::open(path)?.decode().map_err(|e| {
+        MyError::Application(format!("{error}: {e:?}", error = ERROR_DECODING_IMAGE))
+    })?;
     Ok(FrameIterator::Image(Some(img)))
 }
 
@@ -151,13 +148,9 @@ fn open_video(path: &Path) -> Result<FrameIterator, MyError> {
     let video = VideoCapture::from_file(
         path.to_str().expect(ERROR_OPENING_VIDEO),
         opencv::videoio::CAP_ANY,
-    )
-    .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_VIDEO)))?;
+    )?;
 
-    if video
-        .is_opened()
-        .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_VIDEO)))?
-    {
+    if video.is_opened()? {
         Ok(FrameIterator::Video(video))
     } else {
         Err(MyError::Application(ERROR_OPENING_VIDEO.to_string()))
