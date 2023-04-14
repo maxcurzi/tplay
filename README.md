@@ -60,6 +60,12 @@ Being a Rust crate, you will need to have Rust installed on your system. You can
 
 The following dependencies are also required:
 [OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv)
+If you have troubles in Windows (I know I have) try this (assuming you have a relatively modern computer with a Windows 64bit installation):
+- Using [vcpkg](https://vcpkg.io/en/): ` .\vcpkg install opencv4[contrib,nonfree] --triplet x64-windows` from an administrator powershell within the vcpkg directory.
+- Then, install [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) from binary, you'll likely want to use the 64-bit version on a modern computer.
+- Make sure that the environment variable OPENCV_LINK_LIBS is set to just `opencv_core4`.
+
+
 
 Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 

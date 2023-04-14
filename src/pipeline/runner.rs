@@ -7,12 +7,12 @@
 //! character maps during playback.
 use image::DynamicImage;
 
-use crate::common::errors::{MyError, ERROR_CHANNEL};
+use crate::common::errors::MyError;
 use crate::pipeline::char_maps::{LONG1, LONG2, SHORT1, SHORT2};
 
 use super::frames::FrameIterator;
 use super::image_pipeline::ImagePipeline;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 use std::time::Duration;
 
@@ -42,7 +42,7 @@ pub struct Runner {
     /// The current playback state of the Runner.
     state: State,
     /// A channel for receiving processed frames as strings.
-    tx_frames: Sender<String>,
+    tx_frames: SyncSender<Option<String>>,
     /// A channel for sending control commands to the Runner.
     rx_controls: Receiver<Control>,
     /// The width modifier (use 2 for emojis).
@@ -85,7 +85,7 @@ impl Runner {
         pipeline: ImagePipeline,
         media: FrameIterator,
         fps: u64,
-        tx_frames: Sender<String>,
+        tx_frames: SyncSender<Option<String>>,
         rx_controls: Receiver<Control>,
 
         w_mod: u32,
@@ -160,14 +160,20 @@ impl Runner {
 
             if self.should_process_frame(&mut time_count) {
                 let frame = self.get_current_frame();
-                let string_out = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
-                if let Some(string_out) = string_out {
-                    self.tx_frames.send(string_out).map_err(|e| {
-                        MyError::Application(format!("{error}: {e:?}", error = ERROR_CHANNEL))
-                    })?;
+
+                // Check if the buffer is not full with a try_send(None), and don't process/add frames if so.
+                // This allows to drop frames but keep the video in sync if the terminal is too slow.
+                if let Ok(_) = self.tx_frames.try_send(None){
+                    let string_out = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
+                    let _ = self.tx_frames.try_send(string_out); // Best effort send. If the buffer is full the frame will be dropped
+                }
+                else{
+                    // Terminal may be struggling to keep up. Give it time to pick up messages in the buffer
+                    thread::sleep(Duration::from_millis(10));
                 }
             } else {
-                thread::sleep(Duration::from_millis(3));
+                // Be a nice thread
+                thread::sleep(Duration::from_millis(0));
             }
         }
         Ok(())
@@ -183,10 +189,9 @@ impl Runner {
     fn process_control_commands(&mut self) -> bool {
         // Get the next control event
         let mut needs_refresh = false;
-        let control_event = self.rx_controls.recv_timeout(Duration::from_millis(1));
 
-        // If we have a control event, process it
-        if let Ok(control) = control_event {
+        // If we have control events, process them
+        while let Ok(control) = self.rx_controls.recv_timeout(Duration::from_millis(0)) {
             needs_refresh = true;
             match control {
                 Control::PauseContinue => self.toggle_pause(),

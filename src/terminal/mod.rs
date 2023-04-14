@@ -45,7 +45,7 @@ pub struct Terminal {
     /// The current playback state of the Terminal.
     state: State,
     /// The channel for receiving the processed frames from the media processing thread.
-    rx_buffer: Receiver<String>,
+    rx_buffer: Receiver<Option::<String>>,
     /// The channel for sending control events to the media processing thread.
     tx_control: Sender<Control>,
 }
@@ -55,7 +55,7 @@ impl Terminal {
     /// # Arguments
     ///
     /// * `title` - The title for the terminal window.
-    pub fn new(title: String, rx_buffer: Receiver<String>, tx_control: Sender<Control>) -> Self {
+    pub fn new(title: String, rx_buffer: Receiver<Option<String>>, tx_control: Sender<Control>) -> Self {
         Self {
             fg_color: Color::White,
             bg_color: Color::Black,
@@ -159,6 +159,8 @@ impl Terminal {
             }
             Event::Resize(width, height) => {
                 self.send_control(Control::Resize(width, height))?;
+                // Drain buffer
+                while let Ok(_) = self.rx_buffer.recv_timeout(Duration::from_millis(1)){};
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Char(digit),
@@ -214,15 +216,15 @@ impl Terminal {
         // Begin drawing and event loop
         while self.state != State::Stopped {
             // Poll and handle events
-            if event::poll(Duration::from_millis(1))? {
+            if event::poll(Duration::from_millis(0))? {
                 let ev = event::read()?;
                 self.handle_event(ev)?;
             }
 
             // Wait for next frame to draw
-            if let Ok(s) = self.rx_buffer.recv_timeout(Duration::from_millis(5)) {
+            if let Ok(Some(s)) = self.rx_buffer.recv_timeout(Duration::from_millis(5)){
                 self.draw(&s)?;
-            }
+            };
         }
 
         self.cleanup()?;
