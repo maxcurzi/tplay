@@ -160,6 +160,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 Ideally I'd like to implement the following features:
 - Colors
 - Sound playback
+- More media controls (forward, backward, loop, etc.)
 
 Let me know if you have any other ideas!
 
