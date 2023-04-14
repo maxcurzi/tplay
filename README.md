@@ -2,8 +2,8 @@
 
 # Terminal Media Player
 
-[![Crates.io](https://img.shields.io/crates/v/terminal-media-player.svg)](https://crates.io/crates/terminal-media-player)
-[![License](https://img.shields.io/crates/l/terminal-media-player.svg)](https://github.com/maxcurzi/tplay/blob/main/LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/tplay.svg)](https://crates.io/crates/tplay)
+[![License](https://github.com/maxcurzi/tplay/blob/main/LICENSE)](MIT)
 
 View images, videos, webcam, etc directly in the terminal as ASCII art
 
