@@ -165,7 +165,7 @@ Ideally I'd like to implement the following features:
 Let me know if you have any other ideas!
 
 ## License
-This project is licensed under the GNU GPLv3 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Why?
 _Your Scientists Were So Preoccupied With Whether Or Not They Could, They Didn’t Stop To Think If They Should_
