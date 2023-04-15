@@ -7,12 +7,13 @@
 //! character maps during playback.
 use image::DynamicImage;
 
-use crate::common::errors::{MyError, ERROR_CHANNEL};
-use crate::pipeline::char_maps::{LONG1, LONG2, SHORT1, SHORT2};
-
 use super::frames::FrameIterator;
 use super::image_pipeline::ImagePipeline;
-use std::sync::mpsc::{Receiver, Sender};
+use crate::common::errors::MyError;
+use crate::pipeline::char_maps::{LONG1, LONG2, SHORT1, SHORT2};
+use crate::StringInfo;
+use image::GenericImageView;
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 use std::time::Duration;
 
@@ -42,7 +43,7 @@ pub struct Runner {
     /// The current playback state of the Runner.
     state: State,
     /// A channel for receiving processed frames as strings.
-    tx_frames: Sender<String>,
+    tx_frames: SyncSender<Option<StringInfo>>,
     /// A channel for sending control commands to the Runner.
     rx_controls: Receiver<Control>,
     /// The width modifier (use 2 for emojis).
@@ -85,7 +86,7 @@ impl Runner {
         pipeline: ImagePipeline,
         media: FrameIterator,
         fps: u64,
-        tx_frames: Sender<String>,
+        tx_frames: SyncSender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
 
         w_mod: u32,
@@ -144,9 +145,28 @@ impl Runner {
     /// # Returns
     ///
     /// A String containing the ASCII representation of the processed image.
-    fn process_frame(&mut self, frame: &DynamicImage) -> String {
-        let procimage = self.pipeline.process(frame);
-        self.pipeline.to_ascii(&procimage)
+    fn process_frame(&mut self, frame: &DynamicImage) -> StringInfo {
+        let procimage = self.pipeline.resize(frame);
+        let grayimage = procimage.clone().into_luma8();
+        let rgb_info = procimage.clone().into_rgb8().to_vec();
+        // // --------------
+        // // let (width, height) = (frame.width(), frame.height());
+        // // let capacity = (width + 1) * height + 1;
+        // let mut output: Vec<u8> = Vec::with_capacity(rgb_info.len() * 3);
+
+        // for y in 0..self.pipeline.target_resolution.1 {
+        //     for x in 0..self.pipeline.target_resolution.0 {
+        //         let r = procimage.get_pixel(x, y)[2] as u8;
+        //         let g = procimage.get_pixel(x, y)[1] as u8;
+        //         let b = procimage.get_pixel(x, y)[0] as u8;
+        //         output.extend(Vec::from([r, g, b]))
+        //     }
+        //     // output.extend(vec![0, 0, 0]); // /r
+        //     // output.extend(vec![0, 0, 0]); // /n
+        // }
+        // (self.pipeline.to_ascii(&grayimage), output)
+        // --------------
+        (self.pipeline.to_ascii(&grayimage), rgb_info)
     }
 
     /// The main function responsible for running the animation. It processes control commands,
@@ -160,11 +180,16 @@ impl Runner {
 
             if self.should_process_frame(&mut time_count) {
                 let frame = self.get_current_frame();
-                let string_out = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
-                if let Some(string_out) = string_out {
-                    self.tx_frames.send(string_out).map_err(|e| {
-                        MyError::Application(format!("{error}: {e:?}", error = ERROR_CHANNEL))
-                    })?;
+
+                // Check if the buffer is not full with a try_send(None), and don't process/add frames if so.
+                // This allows to drop frames but keep the video in sync if the terminal is too slow.
+                if let Ok(_) = self.tx_frames.try_send(None) {
+                    let string_info =
+                        self.process_current_frame(frame.as_ref(), frame_needs_refresh);
+                    let _ = self.tx_frames.try_send(string_info); // Best effort send. If the buffer is full the frame will be dropped
+                } else {
+                    // Terminal may be struggling to keep up. Give it time to pick up messages in the buffer
+                    thread::sleep(Duration::from_millis(10));
                 }
             } else {
                 thread::sleep(Duration::from_millis(3));
@@ -274,7 +299,7 @@ impl Runner {
         &mut self,
         frame: Option<&DynamicImage>,
         refresh: bool,
-    ) -> Option<String> {
+    ) -> Option<StringInfo> {
         match frame {
             Some(frame) => {
                 self.last_frame = Some(frame.clone());

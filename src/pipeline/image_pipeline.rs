@@ -55,7 +55,7 @@ impl ImagePipeline {
     /// # Returns
     ///
     /// A `GrayImage` representing the resized and grayscale converted input image.
-    pub fn process(&self, img: &DynamicImage) -> GrayImage {
+    pub fn _process(&self, img: &DynamicImage) -> GrayImage {
         let width = NonZeroU32::new(img.width()).unwrap();
         let height = NonZeroU32::new(img.height()).unwrap();
         let src_image = fr::Image::from_vec_u8(
@@ -84,6 +84,35 @@ impl ImagePipeline {
         .unwrap()
     }
 
+    pub fn resize(&self, img: &DynamicImage) -> DynamicImage {
+        let width = NonZeroU32::new(img.width()).unwrap();
+        let height = NonZeroU32::new(img.height()).unwrap();
+        let src_image = fr::Image::from_vec_u8(
+            width,
+            height,
+            img.to_owned().into_rgb8().to_vec(),
+            fr::PixelType::U8x3,
+        )
+        .unwrap();
+        let mut dst_image = fr::Image::new(
+            NonZeroU32::new(self.target_resolution.0).unwrap(),
+            NonZeroU32::new(self.target_resolution.1).unwrap(),
+            fr::PixelType::U8x3,
+        );
+        let mut dst_view = dst_image.view_mut();
+
+        let mut resizer = fr::Resizer::new(fr::ResizeAlg::Nearest);
+        resizer.resize(&src_image.view(), &mut dst_view).unwrap();
+
+        let dst_image = dst_image.into_vec();
+        let img_buff = image::ImageBuffer::<image::Rgb<u8>, _>::from_vec(
+            self.target_resolution.0,
+            self.target_resolution.1,
+            dst_image,
+        )
+        .unwrap();
+        DynamicImage::ImageRgb8(img_buff)
+    }
     /// Converts the given grayscale image to ASCII art using the character lookup table stored in
     /// this `ImagePipeline`.
     ///
@@ -109,10 +138,10 @@ impl ImagePipeline {
                 let lookup_idx = self.char_map.len() * lum as usize / (u8::MAX as usize + 1);
                 self.char_map[lookup_idx]
             }));
-            if y < height - 1 {
-                output.push('\r');
-                output.push('\n');
-            }
+            // if y < height - 1 {
+            //     output.push('\r');
+            //     output.push('\n');
+            // }
         }
 
         output
@@ -153,7 +182,7 @@ mod tests {
         )
         .expect("Failed to download image");
 
-        let output = image.process(&input);
+        let output = image.resize(&input);
         assert_eq!(output.width(), 120);
         assert_eq!(output.height(), 80);
     }
@@ -165,7 +194,7 @@ mod tests {
             "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
         )
         .expect("Failed to download image");
-        let output = image.to_ascii(&image.process(&input));
+        let output = image.to_ascii(&image.resize(&input));
         assert_eq!(output.chars().count(), 120 * 80 + 79 * 2); // Resolution + newlines
     }
 
@@ -176,7 +205,7 @@ mod tests {
             "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
         )
         .expect("Failed to download image");
-        let output = image.to_ascii(&image.process(&input));
+        let output = image.to_ascii(&image.resize(&input));
         assert_eq!(output.len(), 120 * 80 + 79 * 2); // Resolution + newlines
     }
 }

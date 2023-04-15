@@ -1,8 +1,11 @@
 //! The `terminal` module provides functionality for displaying an animation in
 //! the terminal and handling user input events such as pausing/continuing,
 //! resizing, and changing character maps.
-use crate::common::errors::{MyError, ERROR_CHANNEL, ERROR_PARSE_DIGIT_FAILED};
-
+use crate::{
+    common::errors::{MyError, ERROR_CHANNEL, ERROR_PARSE_DIGIT_FAILED},
+    StringInfo,
+};
+use crossterm::style::Stylize;
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, Event, KeyCode, KeyEvent},
@@ -45,7 +48,7 @@ pub struct Terminal {
     /// The current playback state of the Terminal.
     state: State,
     /// The channel for receiving the processed frames from the media processing thread.
-    rx_buffer: Receiver<String>,
+    rx_buffer: Receiver<Option<StringInfo>>,
     /// The channel for sending control events to the media processing thread.
     tx_control: Sender<Control>,
 }
@@ -55,7 +58,11 @@ impl Terminal {
     /// # Arguments
     ///
     /// * `title` - The title for the terminal window.
-    pub fn new(title: String, rx_buffer: Receiver<String>, tx_control: Sender<Control>) -> Self {
+    pub fn new(
+        title: String,
+        rx_buffer: Receiver<Option<StringInfo>>,
+        tx_control: Sender<Control>,
+    ) -> Self {
         Self {
             fg_color: Color::White,
             bg_color: Color::Black,
@@ -111,10 +118,26 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn draw(&self, string: &String) -> CTResult<()> {
-        execute!(stdout(), MoveTo(0, 0), Print(string), MoveTo(0, 0),)?;
-        // Flush output
-        stdout().flush()?;
+    fn draw(&self, (string, rgb_data): &StringInfo) -> CTResult<()> {
+        let mut colored_string = String::with_capacity(string.len() * 10);
+
+        for (c, rgb) in string.chars().zip(rgb_data.chunks(3)) {
+            let color = Color::Rgb {
+                r: rgb[2],
+                g: rgb[1],
+                b: rgb[0],
+            };
+            // TODO: consider -> ascii map for grayscale (no RGB), does it still
+            // make sense to use ascii chars if we also add colors (which
+            // already have luminosity?)
+            //
+            colored_string.push_str(&format!("{}", '█'.stylize().with(color)));
+        }
+
+        let mut out = stdout();
+        execute!(out, MoveTo(0, 0), Print(colored_string), MoveTo(0, 0))?;
+        out.flush()?;
+
         Ok(())
     }
 
@@ -159,6 +182,8 @@ impl Terminal {
             }
             Event::Resize(width, height) => {
                 self.send_control(Control::Resize(width, height))?;
+                // Drain buffer
+                while let Ok(_) = self.rx_buffer.recv_timeout(Duration::from_millis(1)) {}
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Char(digit),
@@ -220,7 +245,7 @@ impl Terminal {
             }
 
             // Wait for next frame to draw
-            if let Ok(s) = self.rx_buffer.recv_timeout(Duration::from_millis(5)) {
+            if let Ok(Some(s)) = self.rx_buffer.recv_timeout(Duration::from_millis(5)) {
                 self.draw(&s)?;
             }
         }

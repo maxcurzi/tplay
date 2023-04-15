@@ -19,7 +19,7 @@ use crate::common::errors::MyError;
 use crate::pipeline::char_maps::SHORT1;
 use crate::pipeline::image_pipeline::ImagePipeline;
 use clap::Parser;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, sync_channel};
 
 use pipeline::frames::{open_media, FrameIterator};
 
@@ -28,7 +28,7 @@ use pipeline::runner;
 use pipeline::runner::Control;
 use std::thread;
 use terminal::Terminal;
-
+pub type StringInfo = (String, Vec<u8>);
 /// Command line arguments structure.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -57,7 +57,7 @@ fn main() -> Result<(), MyError> {
     let media: FrameIterator = open_media(args.input.clone())?;
 
     // Set up a channel for passing frames and controls
-    let (tx_frames, rx_frames) = channel::<String>();
+    let (tx_frames, rx_frames) = sync_channel::<Option<StringInfo>>(1);
     let (tx_controls, rx_controls) = channel::<Control>();
 
     // Launch Pipeline Thread
