@@ -1,10 +1,10 @@
 [package]
 name = "tplay"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2021"
 authors = ["Max Curzi <massimiliano.curzi@gmail.com>"]
 description = "A terminal based media player that visualizes images and videos as ASCII art."
-repository = "www.github.com/maxcurzi/tplay"
+repository = "https://www.github.com/maxcurzi/tplay"
 license-file = "LICENSE"
 readme = "README.md"
 keywords = ["media-player", "ASCII-art", "terminal", "youtube", "video"]
@@ -30,7 +30,7 @@ clap = { version = "4.2.1", features = ["derive"] }
 crossterm = "0.26.1"
 gif = "0.12.0"
 image = "0.24.6"
-opencv = "0.78.2"
+opencv = "0.79.0"
 thiserror = "1.0.40"
 fast_image_resize = "2.7.0"
 youtube_dl = "0.8.0"
