@@ -192,7 +192,8 @@ impl Runner {
                     thread::sleep(Duration::from_millis(10));
                 }
             } else {
-                thread::sleep(Duration::from_millis(3));
+                // Be a nice thread
+                thread::sleep(Duration::from_millis(0));
             }
         }
         Ok(())
@@ -208,10 +209,9 @@ impl Runner {
     fn process_control_commands(&mut self) -> bool {
         // Get the next control event
         let mut needs_refresh = false;
-        let control_event = self.rx_controls.recv_timeout(Duration::from_millis(1));
 
-        // If we have a control event, process it
-        if let Ok(control) = control_event {
+        // If we have control events, process them
+        while let Ok(control) = self.rx_controls.recv_timeout(Duration::from_millis(0)) {
             needs_refresh = true;
             match control {
                 Control::PauseContinue => self.toggle_pause(),

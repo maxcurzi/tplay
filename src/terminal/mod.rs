@@ -239,7 +239,7 @@ impl Terminal {
         // Begin drawing and event loop
         while self.state != State::Stopped {
             // Poll and handle events
-            if event::poll(Duration::from_millis(1))? {
+            if event::poll(Duration::from_millis(0))? {
                 let ev = event::read()?;
                 self.handle_event(ev)?;
             }
@@ -247,7 +247,7 @@ impl Terminal {
             // Wait for next frame to draw
             if let Ok(Some(s)) = self.rx_buffer.recv_timeout(Duration::from_millis(5)) {
                 self.draw(&s)?;
-            }
+            };
         }
 
         self.cleanup()?;

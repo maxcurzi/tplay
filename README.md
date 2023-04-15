@@ -1,9 +1,12 @@
-<img src="https://user-images.githubusercontent.com/30084738/231727365-defc7606-59aa-48f5-b8c4-b7ec4664eac1.jpeg" alt="Image description" width="80" height="80">
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/30084738/231727365-defc7606-59aa-48f5-b8c4-b7ec4664eac1.jpeg" alt="Image description" width="120" height="120">
+</p>
 
 # Terminal Media Player
 
-[![Crates.io](https://img.shields.io/crates/v/terminal-media-player.svg)](https://crates.io/crates/terminal-media-player)
-[![License](https://img.shields.io/crates/l/terminal-media-player.svg)](https://github.com/maxcurzi/tplay/blob/main/LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/tplay)](https://crates.io/crates/tplay)
+[![Crates.io](https://img.shields.io/crates/d/tplay)](https://crates.io/crates/tplay)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 View images, videos, webcam, etc directly in the terminal as ASCII art
 
@@ -60,6 +63,12 @@ Being a Rust crate, you will need to have Rust installed on your system. You can
 
 The following dependencies are also required:
 [OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv)
+If you have troubles in Windows (I know I have) try this (assuming you have a relatively modern computer with a Windows 64bit installation):
+- Using [vcpkg](https://vcpkg.io/en/): ` .\vcpkg install opencv4[contrib,nonfree] --triplet x64-windows` from an administrator powershell within the vcpkg directory.
+- Then, install [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) from binary, you'll likely want to use the 64-bit version on a modern computer.
+- Make sure that the environment variable OPENCV_LINK_LIBS is set to just `opencv_core4`.
+
+
 
 Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
@@ -160,11 +169,12 @@ Contributions are welcome! Please open an issue or submit a pull request.
 Ideally I'd like to implement the following features:
 - Colors
 - Sound playback
+- More media controls (forward, backward, loop, etc.)
 
 Let me know if you have any other ideas!
 
 ## License
-This project is licensed under the GNU GPLv3 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Why?
 _Your Scientists Were So Preoccupied With Whether Or Not They Could, They Didn’t Stop To Think If They Should_
