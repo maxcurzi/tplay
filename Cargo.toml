@@ -1,11 +1,11 @@
 [package]
 name = "tplay"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Max Curzi <massimiliano.curzi@gmail.com>"]
 description = "A terminal based media player that visualizes images and videos as ASCII art."
 repository = "https://www.github.com/maxcurzi/tplay"
-license-file = "LICENSE"
+license = "MIT"
 readme = "README.md"
 keywords = ["media-player", "ASCII-art", "terminal", "youtube", "video"]
 categories = [
