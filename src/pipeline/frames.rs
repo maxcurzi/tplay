@@ -61,37 +61,45 @@ impl Iterator for FrameIterator {
         }
     }
 }
+
+/// Converts an opencv Mat frame to a dynamic image.
+///
+/// This helper function takes a reference to a video frame in BGR format and returns a
+/// `DynamicImage`.
+///
+/// # Arguments
+///
+/// * `mat` - A reference to a `Mat` object containing the video frame.
+///
+/// # Returns
+///
+/// An `Option` containing a grayscale `DynamicImage` if the frame is successfully converted, or
+/// `None` if an error occurs.
 fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
-    // TODO: fix unwraps and unsafe
     let mut rgb_mat = Mat::default();
     if imgproc::cvt_color(&mat, &mut rgb_mat, imgproc::COLOR_BGR2RGB, 0).is_ok() {
-        let data_ptr = rgb_mat.data();
-        let data_slice = unsafe {
-            std::slice::from_raw_parts(
-                data_ptr,
-                rgb_mat.total() as usize * rgb_mat.elem_size().unwrap() as usize,
-            )
-        };
-        let data_vec = data_slice.to_vec();
+        if let Ok(_elem_size) = rgb_mat.elem_size() {
+            if let Ok(size) = rgb_mat.size() {
+                let reshaped_mat = rgb_mat.reshape(1, size.width * size.height).ok()?;
+                let data_vec: Vec<u8> = reshaped_mat.data_typed::<u8>().unwrap().to_vec();
 
-        if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
-            rgb_mat.size().unwrap().width as u32,
-            rgb_mat.size().unwrap().height as u32,
-            data_vec,
-        ) {
-            let rgb_img = image::RgbImage::from(img_buf);
-            return Some(DynamicImage::ImageRgb8(rgb_img));
-        } else {
-            return None;
+                if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
+                    size.width as u32,
+                    size.height as u32,
+                    data_vec,
+                ) {
+                    return Some(DynamicImage::ImageRgb8(img_buf));
+                }
+            }
         }
     }
     None
 }
 
-/// Captures the next video frame as a grayscale image.
+/// Captures the next video frame as a dynamic image.
 ///
 /// This helper function reads the next frame from the provided video and converts it into a
-/// grayscale `DynamicImage`.
+/// `DynamicImage`.
 ///
 /// # Arguments
 ///
@@ -99,42 +107,12 @@ fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
 ///
 /// # Returns
 ///
-/// An `Option` containing a grayscale `DynamicImage` if the frame is successfully captured and
+/// An `Option` containing a `DynamicImage` if the frame is successfully captured and
 /// converted, or `None` if an error occurs or the video has ended.
 fn capture_video_frame(video: &mut VideoCapture) -> Option<DynamicImage> {
     let mut frame = Mat::default();
     if video.read(&mut frame).unwrap_or(false) && !frame.empty() {
         mat_to_dynamic_image(&frame)
-        // convert_frame_to_grayscale(&frame)
-    } else {
-        None
-    }
-}
-
-/// Converts the provided video frame to a grayscale image.
-///
-/// This helper function takes a reference to a video frame in BGR format and returns a
-/// `DynamicImage` in grayscale format.
-///
-/// # Arguments
-///
-/// * `frame` - A reference to a `Mat` object containing the video frame.
-///
-/// # Returns
-///
-/// An `Option` containing a grayscale `DynamicImage` if the frame is successfully converted, or
-/// `None` if an error occurs.
-fn convert_frame_to_grayscale(frame: &Mat) -> Option<DynamicImage> {
-    let mut gray_frame = Mat::default();
-    if imgproc::cvt_color(&frame, &mut gray_frame, imgproc::COLOR_BGR2GRAY, 0).is_ok() {
-        let rows = gray_frame.rows() as u32;
-        let cols = gray_frame.cols() as u32;
-
-        let data = gray_frame.data_typed::<u8>().unwrap_or_default();
-        let data_vec = data.to_owned(); // Clone the underlying data
-        let img = ImageBuffer::from_raw(cols, rows, data_vec).unwrap_or_default();
-
-        Some(DynamicImage::ImageLuma8(img))
     } else {
         None
     }

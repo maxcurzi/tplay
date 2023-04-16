@@ -1,29 +1,21 @@
 //! The `terminal` module provides functionality for displaying an animation in
 //! the terminal and handling user input events such as pausing/continuing,
 //! resizing, and changing character maps.
-use crate::{
-    common::errors::{MyError, ERROR_CHANNEL, ERROR_PARSE_DIGIT_FAILED},
-    StringInfo,
-};
-use crossterm::style::Stylize;
+use crate::{common::errors::*, runner::Control, StringInfo};
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, Event, KeyCode, KeyEvent},
     execute,
-    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
+    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor, Stylize},
     terminal,
     terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
     Result as CTResult,
 };
-
 use std::{
     io::{stdout, Write},
     sync::{mpsc::Receiver, mpsc::Sender},
+    time::Duration,
 };
-
-use std::time::Duration;
-
-use crate::runner::Control;
 
 /// Represents the playback state of the Terminal.
 #[derive(PartialEq)]
@@ -51,7 +43,10 @@ pub struct Terminal {
     rx_buffer: Receiver<Option<StringInfo>>,
     /// The channel for sending control events to the media processing thread.
     tx_control: Sender<Control>,
+    /// Whether to use grayscale colors.
+    use_grayscale: bool,
 }
+
 impl Terminal {
     /// Constructs a new Terminal with the specified title.
     ///
@@ -60,6 +55,7 @@ impl Terminal {
     /// * `title` - The title for the terminal window.
     pub fn new(
         title: String,
+        use_grayscale: bool,
         rx_buffer: Receiver<Option<StringInfo>>,
         tx_control: Sender<Control>,
     ) -> Self {
@@ -70,6 +66,7 @@ impl Terminal {
             state: State::Running,
             rx_buffer,
             tx_control,
+            use_grayscale,
         }
     }
 
@@ -111,33 +108,39 @@ impl Terminal {
 
     /// Draws the current frame of the animation in the terminal.
     ///
+    /// This function takes a reference to a `StringInfo` tuple containing the string representation
+    /// of the current frame and its associated RGB data. It either prints the string as-is (in grayscale)
+    /// or generates a colored string based on the RGB data and then prints it to the terminal.
+    ///
     /// # Arguments
     ///
-    /// * `string` - The string representation of the current frame to be displayed.
+    /// * `string_info` - A reference to the `StringInfo` tuple containing the string representation
+    ///                   of the current frame and its associated RGB data.
     ///
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
     fn draw(&self, (string, rgb_data): &StringInfo) -> CTResult<()> {
-        let mut colored_string = String::with_capacity(string.len() * 10);
-
-        for (c, rgb) in string.chars().zip(rgb_data.chunks(3)) {
-            let color = Color::Rgb {
-                r: rgb[0],
-                g: rgb[1],
-                b: rgb[2],
-            };
-            // TODO: consider -> ascii map for grayscale (no RGB), does it still
-            // make sense to use ascii chars if we also add colors (which
-            // already have luminosity?)
-            //
-            colored_string.push_str(&format!("{}", c.stylize().with(color)));
+        if self.use_grayscale {
+            self._print_string(string)
+        } else {
+            let mut colored_string = String::with_capacity(string.len() * 10);
+            for (c, rgb) in string.chars().zip(rgb_data.chunks(3)) {
+                let color = Color::Rgb {
+                    r: rgb[0],
+                    g: rgb[1],
+                    b: rgb[2],
+                };
+                colored_string.push_str(&format!("{}", c.stylize().with(color)));
+            }
+            self._print_string(&colored_string)
         }
+    }
 
+    fn _print_string(&self, string: &str) -> CTResult<()> {
         let mut out = stdout();
-        execute!(out, MoveTo(0, 0), Print(colored_string), MoveTo(0, 0))?;
+        execute!(out, MoveTo(0, 0), Print(string), MoveTo(0, 0))?;
         out.flush()?;
-
         Ok(())
     }
 
@@ -154,6 +157,7 @@ impl Terminal {
     /// Returns an error if there is an issue with the terminal operations.
     fn handle_event(&mut self, event: Event) -> CTResult<()> {
         match event {
+            // Quit
             Event::Key(KeyEvent {
                 code: KeyCode::Char('q') | KeyCode::Char('Q'),
                 ..
@@ -180,11 +184,19 @@ impl Terminal {
                     State::Stopped => State::Stopped,
                 };
             }
+
+            // Resize
             Event::Resize(width, height) => {
                 self.send_control(Control::Resize(width, height))?;
                 // Drain buffer
-                while let Ok(_) = self.rx_buffer.recv_timeout(Duration::from_millis(1)) {}
+                while self
+                    .rx_buffer
+                    .recv_timeout(Duration::from_millis(1))
+                    .is_ok()
+                { /* Do nothing */ }
             }
+
+            // Change character map
             Event::Key(KeyEvent {
                 code: KeyCode::Char(digit),
                 ..
@@ -192,6 +204,15 @@ impl Terminal {
                 self.send_control(Control::SetCharMap(digit.to_digit(10).unwrap_or_else(
                     || panic!("{error}: {digit:?}", error = ERROR_PARSE_DIGIT_FAILED),
                 )))?;
+            }
+
+            // Toggle grayscale mode
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('g') | KeyCode::Char('G'),
+                ..
+            }) => {
+                self.use_grayscale = !self.use_grayscale;
+                self.send_control(Control::SetGrayscale(self.use_grayscale))?;
             }
             _ => {}
         }

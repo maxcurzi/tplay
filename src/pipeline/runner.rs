@@ -66,6 +66,10 @@ pub enum Control {
     /// Command to resize the target resolution of the image pipeline.
     /// The arguments represent the new target width and height, respectively.
     Resize(u16, u16),
+    /// (UNUSED) Command to set grayscale mode. We always extract
+    /// rgb+grayscale from image, the terminal is responsible for the correct
+    /// render mode.
+    SetGrayscale(bool),
 }
 impl Runner {
     /// Initializes a new Runner instance.
@@ -146,28 +150,11 @@ impl Runner {
     /// # Returns
     ///
     /// A String containing the ASCII representation of the processed image.
-    fn process_frame(&mut self, frame: &DynamicImage) -> StringInfo {
-        let procimage = self.pipeline.resize(frame);
+    fn process_frame(&mut self, frame: &DynamicImage) -> Result<StringInfo, MyError> {
+        let procimage = self.pipeline.resize(frame)?;
         let grayimage = procimage.clone().into_luma8();
-        let rgb_info = procimage.clone().into_rgb8().to_vec();
-        // // --------------
-        // // let (width, height) = (frame.width(), frame.height());
-        // // let capacity = (width + 1) * height + 1;
-        // let mut output: Vec<u8> = Vec::with_capacity(rgb_info.len() * 3);
-
-        // for y in 0..self.pipeline.target_resolution.1 {
-        //     for x in 0..self.pipeline.target_resolution.0 {
-        //         let r = procimage.get_pixel(x, y)[2] as u8;
-        //         let g = procimage.get_pixel(x, y)[1] as u8;
-        //         let b = procimage.get_pixel(x, y)[0] as u8;
-        //         output.extend(Vec::from([r, g, b]))
-        //     }
-        //     // output.extend(vec![0, 0, 0]); // /r
-        //     // output.extend(vec![0, 0, 0]); // /n
-        // }
-        // (self.pipeline.to_ascii(&grayimage), output)
-        // --------------
-        (self.pipeline.to_ascii(&grayimage), rgb_info)
+        let rgb_info = procimage.into_rgb8().to_vec();
+        Ok((self.pipeline.to_ascii(&grayimage), rgb_info))
     }
 
     /// The main function responsible for running the animation. It processes control commands,
@@ -184,7 +171,7 @@ impl Runner {
 
                 // Check if the buffer is not full with a try_send(None), and don't process/add frames if so.
                 // This allows to drop frames but keep the video in sync if the terminal is too slow.
-                if let Ok(_) = self.tx_frames.try_send(None) {
+                if self.tx_frames.try_send(None).is_ok() {
                     let string_info =
                         self.process_current_frame(frame.as_ref(), frame_needs_refresh);
                     let _ = self.tx_frames.try_send(string_info); // Best effort send. If the buffer is full the frame will be dropped
@@ -212,7 +199,7 @@ impl Runner {
         let mut needs_refresh = false;
 
         // If we have control events, process them
-        while let Ok(control) = self.rx_controls.recv_timeout(Duration::from_millis(0)) {
+        while let Ok(control) = self.rx_controls.recv_timeout(Duration::from_millis(1)) {
             needs_refresh = true;
             match control {
                 Control::PauseContinue => self.toggle_pause(),
@@ -222,6 +209,9 @@ impl Runner {
                 }
                 Control::SetCharMap(char_map) => {
                     self.set_char_map(char_map);
+                }
+                Control::SetGrayscale(_) => {
+                    // ignore
                 }
             }
         }
@@ -295,7 +285,7 @@ impl Runner {
     ///
     /// # Returns
     ///
-    /// An Optional String containing the ASCII representation of the processed frame, or None
+    /// An Optional StringInfo tuple containing the ASCII representation of the processed frame and RGB info.
     fn process_current_frame(
         &mut self,
         frame: Option<&DynamicImage>,
@@ -304,14 +294,18 @@ impl Runner {
         match frame {
             Some(frame) => {
                 self.last_frame = Some(frame.clone());
-                Some(self.process_frame(frame))
+                if let Ok(string_info) = self.process_frame(frame) {
+                    return Some(string_info);
+                }
+                None
             }
             None => {
                 if self.last_frame.is_some() && refresh {
-                    Some(self.process_frame(&self.last_frame.clone().unwrap()))
-                } else {
-                    None
+                    if let Ok(string_info) = self.process_frame(&self.last_frame.clone().unwrap()) {
+                        return Some(string_info);
+                    }
                 }
+                None
             }
         }
     }

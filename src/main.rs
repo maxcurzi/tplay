@@ -43,6 +43,9 @@ struct Args {
     #[arg(short, long, default_value = CHARS1)]
     char_map: String,
     /// Experimental width modifier (emojis have 2x width)
+    #[arg(short, long, default_value = "false")]
+    gray: bool,
+    /// Experimental width modifier (emojis have 2x width)
     #[arg(long, default_value = "1")]
     w_mod: u32,
 }
@@ -60,6 +63,12 @@ fn main() -> Result<(), MyError> {
     let (tx_frames, rx_frames) = sync_channel::<Option<StringInfo>>(1);
     let (tx_controls, rx_controls) = channel::<Control>();
 
+    // Launch Terminal Thread
+    let handle_thread_terminal = thread::spawn(move || {
+        let mut term = Terminal::new(args.input, args.gray, rx_frames, tx_controls);
+        term.run().expect("Error running terminal thread");
+    });
+
     // Launch Pipeline Thread
     let handle_thread_pipeline = thread::spawn(move || {
         let mut runner = runner::Runner::init(
@@ -71,12 +80,6 @@ fn main() -> Result<(), MyError> {
             args.w_mod,
         );
         runner.run().expect("Error running pipeline thread");
-    });
-
-    // Launch Terminal Thread
-    let handle_thread_terminal = thread::spawn(move || {
-        let mut t2 = Terminal::new(args.input, rx_frames, tx_controls);
-        t2.run().expect("Error running terminal thread");
     });
 
     // Wait for threads to finish
