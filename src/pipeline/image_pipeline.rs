@@ -44,48 +44,6 @@ impl ImagePipeline {
         self
     }
 
-    /// Scales the given image according to the target resolution stored in this `ImagePipeline` and
-    /// returns a new `GrayImage`.
-    ///
-    /// This method resizes the input image to the target resolution using the fast-image-resize
-    /// crate and converts it to grayscale.
-    ///
-    /// # Arguments
-    ///
-    /// * `img` - A reference to a `DynamicImage` to be processed.
-    ///
-    /// # Returns
-    ///
-    /// A `GrayImage` representing the resized and grayscale converted input image.
-    pub fn _process(&self, img: &DynamicImage) -> GrayImage {
-        let width = NonZeroU32::new(img.width()).unwrap();
-        let height = NonZeroU32::new(img.height()).unwrap();
-        let src_image = fr::Image::from_vec_u8(
-            width,
-            height,
-            img.to_owned().into_luma8().to_vec(),
-            fr::PixelType::U8,
-        )
-        .unwrap();
-        let mut dst_image = fr::Image::new(
-            NonZeroU32::new(self.target_resolution.0).unwrap(),
-            NonZeroU32::new(self.target_resolution.1).unwrap(),
-            fr::PixelType::U8,
-        );
-        let mut dst_view = dst_image.view_mut();
-
-        let mut resizer = fr::Resizer::new(fr::ResizeAlg::Nearest);
-        resizer.resize(&src_image.view(), &mut dst_view).unwrap();
-
-        let dst_image = dst_image.into_vec();
-        GrayImage::from_vec(
-            self.target_resolution.0,
-            self.target_resolution.1,
-            dst_image,
-        )
-        .unwrap()
-    }
-
     /// Resizes a given `DynamicImage` to the target resolution specified in the `self` object.
     ///
     /// This function takes a reference to a `DynamicImage` and resizes it using the nearest

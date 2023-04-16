@@ -301,7 +301,12 @@ impl Runner {
             }
             None => {
                 if self.last_frame.is_some() && refresh {
-                    if let Ok(string_info) = self.process_frame(&self.last_frame.clone().unwrap()) {
+                    if let Ok(string_info) = self.process_frame(
+                        &self
+                            .last_frame
+                            .clone()
+                            .expect("Last frame should be available"),
+                    ) {
                         return Some(string_info);
                     }
                 }

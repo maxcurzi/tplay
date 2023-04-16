@@ -81,7 +81,10 @@ fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
         if let Ok(_elem_size) = rgb_mat.elem_size() {
             if let Ok(size) = rgb_mat.size() {
                 let reshaped_mat = rgb_mat.reshape(1, size.width * size.height).ok()?;
-                let data_vec: Vec<u8> = reshaped_mat.data_typed::<u8>().unwrap().to_vec();
+                let data_vec: Vec<u8> = reshaped_mat
+                    .data_typed::<u8>()
+                    .expect("Mat data should be valid")
+                    .to_vec();
 
                 if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
                     size.width as u32,
@@ -229,7 +232,7 @@ pub fn open_media<P: AsRef<Path>>(path: P) -> Result<FrameIterator, MyError> {
     if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
         if let Some(domain) = url.domain() {
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
-                let video = youtube::download_video(path.to_str().unwrap())?;
+                let video = youtube::download_video(path.to_str().unwrap_or(""))?;
                 return open_video(&video);
             }
         }
