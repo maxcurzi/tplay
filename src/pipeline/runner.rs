@@ -213,9 +213,7 @@ impl Runner {
                 Control::SetCharMap(char_map) => {
                     self.set_char_map(char_map);
                 }
-                Control::SetGrayscale(_) => {
-                    // ignore
-                }
+                Control::SetGrayscale(_) => { /* ignore */ }
             }
         }
         needs_refresh

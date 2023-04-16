@@ -42,11 +42,11 @@ struct Args {
     /// Custom lookup char table
     #[arg(short, long, default_value = CHARS1)]
     char_map: String,
-    /// Experimental width modifier (emojis have 2x width)
+    /// Grayscale mode
     #[arg(short, long, default_value = "false")]
     gray: bool,
     /// Experimental width modifier (emojis have 2x width)
-    #[arg(long, default_value = "1")]
+    #[arg(short, long, default_value = "1")]
     w_mod: u32,
 }
 

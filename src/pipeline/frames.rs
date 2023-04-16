@@ -64,7 +64,7 @@ impl Iterator for FrameIterator {
 
 /// Converts an opencv Mat frame to a dynamic image.
 ///
-/// This helper function takes a reference to a video frame in BGR format and returns a
+/// This helper function takes a reference to a video frame in BGR format and returns an optional
 /// `DynamicImage`.
 ///
 /// # Arguments
@@ -73,7 +73,7 @@ impl Iterator for FrameIterator {
 ///
 /// # Returns
 ///
-/// An `Option` containing a grayscale `DynamicImage` if the frame is successfully converted, or
+/// An `Option` containing a `DynamicImage` if the frame is successfully converted, or
 /// `None` if an error occurs.
 fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
     let mut rgb_mat = Mat::default();
@@ -83,7 +83,7 @@ fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
                 let reshaped_mat = rgb_mat.reshape(1, size.width * size.height).ok()?;
                 let data_vec: Vec<u8> = reshaped_mat
                     .data_typed::<u8>()
-                    .expect("Mat data should be valid")
+                    .expect("Unexpected invalid data")
                     .to_vec();
 
                 if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
@@ -207,14 +207,12 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
     })
 }
 
-/// Opens the specified media file and returns a `FrameIterator` for iterating
-/// over its frames.
+/// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
 ///
-/// This function accepts a path to a media file and determines its type based
-/// on its extension. It supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG),
-/// videos (MP4, AVI, WEBM, MKV, MOV, FLV, OGG), and animated GIFs. If the
-/// provided path is a URL pointing to a YouTube video, the video will be
-/// downloaded and opened.
+/// This function accepts a path to a media file and determines its type based on its extension. It
+/// supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG), videos (MP4, AVI, WEBM, MKV, MOV, FLV,
+/// OGG), and animated GIFs. If the provided path is a URL pointing to a YouTube video, the video
+/// will be downloaded and opened.
 ///
 /// # Arguments
 ///
@@ -222,8 +220,8 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
 ///
 /// # Returns
 ///
-/// A `Result` containing a `FrameIterator` if the media file is successfully
-/// opened, or a `MyError` if an error occurs.
+/// A `Result` containing a `FrameIterator` if the media file is successfully opened, or a `MyError`
+/// if an error occurs.
 pub fn open_media<P: AsRef<Path>>(path: P) -> Result<FrameIterator, MyError> {
     let path = path.as_ref();
     let ext = path.extension().and_then(std::ffi::OsStr::to_str);
