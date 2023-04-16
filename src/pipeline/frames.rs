@@ -62,10 +62,47 @@ impl Iterator for FrameIterator {
     }
 }
 
-/// Captures the next video frame as a grayscale image.
+/// Converts an opencv Mat frame to a dynamic image.
+///
+/// This helper function takes a reference to a video frame in BGR format and returns an optional
+/// `DynamicImage`.
+///
+/// # Arguments
+///
+/// * `mat` - A reference to a `Mat` object containing the video frame.
+///
+/// # Returns
+///
+/// An `Option` containing a `DynamicImage` if the frame is successfully converted, or
+/// `None` if an error occurs.
+fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
+    let mut rgb_mat = Mat::default();
+    if imgproc::cvt_color(&mat, &mut rgb_mat, imgproc::COLOR_BGR2RGB, 0).is_ok() {
+        if let Ok(_elem_size) = rgb_mat.elem_size() {
+            if let Ok(size) = rgb_mat.size() {
+                let reshaped_mat = rgb_mat.reshape(1, size.width * size.height).ok()?;
+                let data_vec: Vec<u8> = reshaped_mat
+                    .data_typed::<u8>()
+                    .expect("Unexpected invalid data")
+                    .to_vec();
+
+                if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
+                    size.width as u32,
+                    size.height as u32,
+                    data_vec,
+                ) {
+                    return Some(DynamicImage::ImageRgb8(img_buf));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Captures the next video frame as a dynamic image.
 ///
 /// This helper function reads the next frame from the provided video and converts it into a
-/// grayscale `DynamicImage`.
+/// `DynamicImage`.
 ///
 /// # Arguments
 ///
@@ -73,41 +110,12 @@ impl Iterator for FrameIterator {
 ///
 /// # Returns
 ///
-/// An `Option` containing a grayscale `DynamicImage` if the frame is successfully captured and
+/// An `Option` containing a `DynamicImage` if the frame is successfully captured and
 /// converted, or `None` if an error occurs or the video has ended.
 fn capture_video_frame(video: &mut VideoCapture) -> Option<DynamicImage> {
     let mut frame = Mat::default();
     if video.read(&mut frame).unwrap_or(false) && !frame.empty() {
-        convert_frame_to_grayscale(&frame)
-    } else {
-        None
-    }
-}
-
-/// Converts the provided video frame to a grayscale image.
-///
-/// This helper function takes a reference to a video frame in BGR format and returns a
-/// `DynamicImage` in grayscale format.
-///
-/// # Arguments
-///
-/// * `frame` - A reference to a `Mat` object containing the video frame.
-///
-/// # Returns
-///
-/// An `Option` containing a grayscale `DynamicImage` if the frame is successfully converted, or
-/// `None` if an error occurs.
-fn convert_frame_to_grayscale(frame: &Mat) -> Option<DynamicImage> {
-    let mut gray_frame = Mat::default();
-    if imgproc::cvt_color(&frame, &mut gray_frame, imgproc::COLOR_BGR2GRAY, 0).is_ok() {
-        let rows = gray_frame.rows() as u32;
-        let cols = gray_frame.cols() as u32;
-
-        let data = gray_frame.data_typed::<u8>().unwrap_or_default();
-        let data_vec = data.to_owned(); // Clone the underlying data
-        let img = ImageBuffer::from_raw(cols, rows, data_vec).unwrap_or_default();
-
-        Some(DynamicImage::ImageLuma8(img))
+        mat_to_dynamic_image(&frame)
     } else {
         None
     }
@@ -199,14 +207,12 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
     })
 }
 
-/// Opens the specified media file and returns a `FrameIterator` for iterating
-/// over its frames.
+/// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
 ///
-/// This function accepts a path to a media file and determines its type based
-/// on its extension. It supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG),
-/// videos (MP4, AVI, WEBM, MKV, MOV, FLV, OGG), and animated GIFs. If the
-/// provided path is a URL pointing to a YouTube video, the video will be
-/// downloaded and opened.
+/// This function accepts a path to a media file and determines its type based on its extension. It
+/// supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG), videos (MP4, AVI, WEBM, MKV, MOV, FLV,
+/// OGG), and animated GIFs. If the provided path is a URL pointing to a YouTube video, the video
+/// will be downloaded and opened.
 ///
 /// # Arguments
 ///
@@ -214,8 +220,8 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
 ///
 /// # Returns
 ///
-/// A `Result` containing a `FrameIterator` if the media file is successfully
-/// opened, or a `MyError` if an error occurs.
+/// A `Result` containing a `FrameIterator` if the media file is successfully opened, or a `MyError`
+/// if an error occurs.
 pub fn open_media<P: AsRef<Path>>(path: P) -> Result<FrameIterator, MyError> {
     let path = path.as_ref();
     let ext = path.extension().and_then(std::ffi::OsStr::to_str);
@@ -224,7 +230,7 @@ pub fn open_media<P: AsRef<Path>>(path: P) -> Result<FrameIterator, MyError> {
     if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
         if let Some(domain) = url.domain() {
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
-                let video = youtube::download_video(path.to_str().unwrap())?;
+                let video = youtube::download_video(path.to_str().unwrap_or(""))?;
                 return open_video(&video);
             }
         }

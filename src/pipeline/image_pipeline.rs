@@ -5,6 +5,8 @@ use fast_image_resize as fr;
 use image::{DynamicImage, GrayImage};
 use std::num::NonZeroU32;
 
+use crate::common::errors::*;
+
 /// The `ImagePipeline` struct encapsulates the process of converting an image to ASCII art. It
 /// stores the target resolution (width and height) and the character lookup table used for the
 /// conversion.
@@ -42,46 +44,63 @@ impl ImagePipeline {
         self
     }
 
-    /// Scales the given image according to the target resolution stored in this `ImagePipeline` and
-    /// returns a new `GrayImage`.
+    /// Resizes a given `DynamicImage` to the target resolution specified in the `self` object.
     ///
-    /// This method resizes the input image to the target resolution using the fast-image-resize
-    /// crate and converts it to grayscale.
+    /// This function takes a reference to a `DynamicImage` and resizes it using the nearest
+    /// neighbor algorithm. The resized image is returned as a new `DynamicImage`.
     ///
     /// # Arguments
     ///
-    /// * `img` - A reference to a `DynamicImage` to be processed.
+    /// * `img` - A reference to the `DynamicImage` to be resized.
     ///
     /// # Returns
     ///
-    /// A `GrayImage` representing the resized and grayscale converted input image.
-    pub fn process(&self, img: &DynamicImage) -> GrayImage {
-        let width = NonZeroU32::new(img.width()).unwrap();
-        let height = NonZeroU32::new(img.height()).unwrap();
+    /// A `Result` containing a resized `DynamicImage` if the operation is successful, or a
+    /// `MyError` if an error occurs.
+    ///
+    /// # Errors
+    ///
+    /// This function may return a `MyError` if any of the following conditions are encountered:
+    ///
+    /// * The input image has a width or height of zero.
+    /// * The target resolution has a width or height of zero.
+    /// * An error occurs while creating an `fr::Image` from the input image.
+    /// * An error occurs while resizing the image using the `fr::Resizer`.
+    /// * An error occurs while creating an `ImageBuffer` from the resized image data.
+    pub fn resize(&self, img: &DynamicImage) -> Result<DynamicImage, MyError> {
+        let width =
+            NonZeroU32::new(img.width()).ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?;
+        let height =
+            NonZeroU32::new(img.height()).ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?;
         let src_image = fr::Image::from_vec_u8(
             width,
             height,
-            img.to_owned().into_luma8().to_vec(),
-            fr::PixelType::U8,
+            img.to_owned().into_rgb8().to_vec(),
+            fr::PixelType::U8x3,
         )
-        .unwrap();
+        .map_err(|err| MyError::Pipeline(format!("{ERROR_RESIZE}:{err:?}")))?;
         let mut dst_image = fr::Image::new(
-            NonZeroU32::new(self.target_resolution.0).unwrap(),
-            NonZeroU32::new(self.target_resolution.1).unwrap(),
-            fr::PixelType::U8,
+            NonZeroU32::new(self.target_resolution.0)
+                .ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?,
+            NonZeroU32::new(self.target_resolution.1)
+                .ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?,
+            fr::PixelType::U8x3,
         );
         let mut dst_view = dst_image.view_mut();
 
         let mut resizer = fr::Resizer::new(fr::ResizeAlg::Nearest);
-        resizer.resize(&src_image.view(), &mut dst_view).unwrap();
+        resizer
+            .resize(&src_image.view(), &mut dst_view)
+            .map_err(|err| MyError::Pipeline(format!("{ERROR_RESIZE}:{err:?}")))?;
 
         let dst_image = dst_image.into_vec();
-        GrayImage::from_vec(
+        let img_buff = image::ImageBuffer::<image::Rgb<u8>, _>::from_vec(
             self.target_resolution.0,
             self.target_resolution.1,
             dst_image,
         )
-        .unwrap()
+        .ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?;
+        Ok(DynamicImage::ImageRgb8(img_buff))
     }
 
     /// Converts the given grayscale image to ASCII art using the character lookup table stored in
@@ -109,10 +128,6 @@ impl ImagePipeline {
                 let lookup_idx = self.char_map.len() * lum as usize / (u8::MAX as usize + 1);
                 self.char_map[lookup_idx]
             }));
-            if y < height - 1 {
-                output.push('\r');
-                output.push('\n');
-            }
         }
 
         output
@@ -121,7 +136,7 @@ impl ImagePipeline {
 
 #[cfg(test)]
 mod tests {
-    use crate::pipeline::char_maps::SHORT2;
+    use crate::pipeline::char_maps::CHARS1;
 
     use super::*;
     use image::{DynamicImage, ImageError};
@@ -148,35 +163,29 @@ mod tests {
     #[test]
     fn test_process() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
-        let input = download_image(
-            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
-        )
-        .expect("Failed to download image");
+        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
+            .expect("Failed to download image");
 
-        let output = image.process(&input);
+        let output = image.resize(&input).unwrap();
         assert_eq!(output.width(), 120);
         assert_eq!(output.height(), 80);
     }
 
     #[test]
     fn test_to_ascii_ext() {
-        let image = ImagePipeline::new((120, 80), SHORT2.chars().collect());
-        let input = download_image(
-            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
-        )
-        .expect("Failed to download image");
-        let output = image.to_ascii(&image.process(&input));
-        assert_eq!(output.chars().count(), 120 * 80 + 79 * 2); // Resolution + newlines
+        let image = ImagePipeline::new((120, 80), CHARS1.chars().collect());
+        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
+            .expect("Failed to download image");
+        let output = image.to_ascii(&image.resize(&input).unwrap().into_luma8());
+        assert_eq!(output.chars().count(), 120 * 80);
     }
 
     #[test]
     fn test_to_ascii() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
-        let input = download_image(
-            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
-        )
-        .expect("Failed to download image");
-        let output = image.to_ascii(&image.process(&input));
-        assert_eq!(output.len(), 120 * 80 + 79 * 2); // Resolution + newlines
+        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
+            .expect("Failed to download image");
+        let output = image.to_ascii(&image.resize(&input).unwrap().into_luma8());
+        assert_eq!(output.len(), 120 * 80);
     }
 }

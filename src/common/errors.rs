@@ -13,6 +13,9 @@ pub enum MyError {
     #[error("Application error: {0}")]
     Application(String),
 
+    #[error("Image pipeline error: {0}")]
+    Pipeline(String),
+
     #[error("Terminal error: {0}")]
     Terminal(String),
 }
@@ -47,3 +50,7 @@ pub const ERROR_READING_GIF_HEADER: &str = "Cannot read GIF header";
 pub const ERROR_PARSE_DIGIT_FAILED: &str = "Failed to parse digit";
 /// Error message for issue related to channel communication.
 pub const ERROR_CHANNEL: &str = "Error during channel communication";
+/// Error message for issues related to data processing.
+pub const ERROR_DATA: &str = "Data error";
+/// Error message for issues related to resizing an image.
+pub const ERROR_RESIZE: &str = "Image resizing error";

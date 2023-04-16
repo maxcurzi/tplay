@@ -16,7 +16,7 @@ mod downloader;
 mod pipeline;
 mod terminal;
 use crate::common::errors::MyError;
-use crate::pipeline::char_maps::SHORT1;
+use crate::pipeline::char_maps::CHARS1;
 use crate::pipeline::image_pipeline::ImagePipeline;
 use clap::Parser;
 use std::sync::mpsc::{channel, sync_channel};
@@ -28,7 +28,7 @@ use pipeline::runner;
 use pipeline::runner::Control;
 use std::thread;
 use terminal::Terminal;
-
+pub type StringInfo = (String, Vec<u8>);
 /// Command line arguments structure.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -40,10 +40,13 @@ struct Args {
     #[arg(short, long, default_value = "60")]
     fps: u64,
     /// Custom lookup char table
-    #[arg(short, long, default_value = SHORT1)]
+    #[arg(short, long, default_value = CHARS1)]
     char_map: String,
+    /// Grayscale mode
+    #[arg(short, long, default_value = "false")]
+    gray: bool,
     /// Experimental width modifier (emojis have 2x width)
-    #[arg(long, default_value = "1")]
+    #[arg(short, long, default_value = "1")]
     w_mod: u32,
 }
 
@@ -57,8 +60,14 @@ fn main() -> Result<(), MyError> {
     let media: FrameIterator = open_media(args.input.clone())?;
 
     // Set up a channel for passing frames and controls
-    let (tx_frames, rx_frames) = sync_channel::<Option<String>>(1);
+    let (tx_frames, rx_frames) = sync_channel::<Option<StringInfo>>(1);
     let (tx_controls, rx_controls) = channel::<Control>();
+
+    // Launch Terminal Thread
+    let handle_thread_terminal = thread::spawn(move || {
+        let mut term = Terminal::new(args.input, args.gray, rx_frames, tx_controls);
+        term.run().expect("Error running terminal thread");
+    });
 
     // Launch Pipeline Thread
     let handle_thread_pipeline = thread::spawn(move || {
@@ -71,12 +80,6 @@ fn main() -> Result<(), MyError> {
             args.w_mod,
         );
         runner.run().expect("Error running pipeline thread");
-    });
-
-    // Launch Terminal Thread
-    let handle_thread_terminal = thread::spawn(move || {
-        let mut t2 = Terminal::new(args.input, rx_frames, tx_controls);
-        t2.run().expect("Error running terminal thread");
     });
 
     // Wait for threads to finish

@@ -7,11 +7,11 @@
 //! character maps during playback.
 use image::DynamicImage;
 
-use crate::common::errors::MyError;
-use crate::pipeline::char_maps::{LONG1, LONG2, SHORT1, SHORT2};
-
 use super::frames::FrameIterator;
 use super::image_pipeline::ImagePipeline;
+use crate::common::errors::MyError;
+use crate::pipeline::char_maps::*;
+use crate::StringInfo;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 use std::time::Duration;
@@ -42,7 +42,7 @@ pub struct Runner {
     /// The current playback state of the Runner.
     state: State,
     /// A channel for receiving processed frames as strings.
-    tx_frames: SyncSender<Option<String>>,
+    tx_frames: SyncSender<Option<StringInfo>>,
     /// A channel for sending control commands to the Runner.
     rx_controls: Receiver<Control>,
     /// The width modifier (use 2 for emojis).
@@ -66,6 +66,10 @@ pub enum Control {
     /// Command to resize the target resolution of the image pipeline.
     /// The arguments represent the new target width and height, respectively.
     Resize(u16, u16),
+    /// (UNUSED) Command to set grayscale mode. We always extract
+    /// rgb+grayscale from image, the terminal is responsible for the correct
+    /// render mode.
+    SetGrayscale(bool),
 }
 impl Runner {
     /// Initializes a new Runner instance.
@@ -85,17 +89,22 @@ impl Runner {
         pipeline: ImagePipeline,
         media: FrameIterator,
         fps: u64,
-        tx_frames: SyncSender<Option<String>>,
+        tx_frames: SyncSender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
 
         w_mod: u32,
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_map.clone(),
-            SHORT1.to_string().chars().collect(),
-            SHORT2.to_string().chars().collect(),
-            LONG1.to_string().chars().collect(),
-            LONG2.to_string().chars().collect(),
+            CHARS1.to_string().chars().collect(),
+            CHARS2.to_string().chars().collect(),
+            CHARS3.to_string().chars().collect(),
+            SOLID.to_string().chars().collect(),
+            DOTTED.to_string().chars().collect(),
+            GRADIENT.to_string().chars().collect(),
+            BLACKWHITE.to_string().chars().collect(),
+            BW_DOTTED.to_string().chars().collect(),
+            BRAILLE.to_string().chars().collect(),
         ];
 
         Self {
@@ -144,9 +153,11 @@ impl Runner {
     /// # Returns
     ///
     /// A String containing the ASCII representation of the processed image.
-    fn process_frame(&mut self, frame: &DynamicImage) -> String {
-        let procimage = self.pipeline.process(frame);
-        self.pipeline.to_ascii(&procimage)
+    fn process_frame(&mut self, frame: &DynamicImage) -> Result<StringInfo, MyError> {
+        let procimage = self.pipeline.resize(frame)?;
+        let grayimage = procimage.clone().into_luma8();
+        let rgb_info = procimage.into_rgb8().to_vec();
+        Ok((self.pipeline.to_ascii(&grayimage), rgb_info))
     }
 
     /// The main function responsible for running the animation. It processes control commands,
@@ -163,11 +174,11 @@ impl Runner {
 
                 // Check if the buffer is not full with a try_send(None), and don't process/add frames if so.
                 // This allows to drop frames but keep the video in sync if the terminal is too slow.
-                if let Ok(_) = self.tx_frames.try_send(None){
-                    let string_out = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
-                    let _ = self.tx_frames.try_send(string_out); // Best effort send. If the buffer is full the frame will be dropped
-                }
-                else{
+                if self.tx_frames.try_send(None).is_ok() {
+                    let string_info =
+                        self.process_current_frame(frame.as_ref(), frame_needs_refresh);
+                    let _ = self.tx_frames.try_send(string_info); // Best effort send. If the buffer is full the frame will be dropped
+                } else {
                     // Terminal may be struggling to keep up. Give it time to pick up messages in the buffer
                     thread::sleep(Duration::from_millis(10));
                 }
@@ -191,7 +202,7 @@ impl Runner {
         let mut needs_refresh = false;
 
         // If we have control events, process them
-        while let Ok(control) = self.rx_controls.recv_timeout(Duration::from_millis(0)) {
+        while let Ok(control) = self.rx_controls.recv_timeout(Duration::from_millis(1)) {
             needs_refresh = true;
             match control {
                 Control::PauseContinue => self.toggle_pause(),
@@ -202,6 +213,7 @@ impl Runner {
                 Control::SetCharMap(char_map) => {
                     self.set_char_map(char_map);
                 }
+                Control::SetGrayscale(_) => { /* ignore */ }
             }
         }
         needs_refresh
@@ -274,23 +286,32 @@ impl Runner {
     ///
     /// # Returns
     ///
-    /// An Optional String containing the ASCII representation of the processed frame, or None
+    /// An Optional StringInfo tuple containing the ASCII representation of the processed frame and RGB info.
     fn process_current_frame(
         &mut self,
         frame: Option<&DynamicImage>,
         refresh: bool,
-    ) -> Option<String> {
+    ) -> Option<StringInfo> {
         match frame {
             Some(frame) => {
                 self.last_frame = Some(frame.clone());
-                Some(self.process_frame(frame))
+                if let Ok(string_info) = self.process_frame(frame) {
+                    return Some(string_info);
+                }
+                None
             }
             None => {
                 if self.last_frame.is_some() && refresh {
-                    Some(self.process_frame(&self.last_frame.clone().unwrap()))
-                } else {
-                    None
+                    if let Ok(string_info) = self.process_frame(
+                        &self
+                            .last_frame
+                            .clone()
+                            .expect("Last frame should be available"),
+                    ) {
+                        return Some(string_info);
+                    }
                 }
+                None
             }
         }
     }
