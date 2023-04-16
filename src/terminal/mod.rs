@@ -123,15 +123,15 @@ impl Terminal {
 
         for (c, rgb) in string.chars().zip(rgb_data.chunks(3)) {
             let color = Color::Rgb {
-                r: rgb[2],
+                r: rgb[0],
                 g: rgb[1],
-                b: rgb[0],
+                b: rgb[2],
             };
             // TODO: consider -> ascii map for grayscale (no RGB), does it still
             // make sense to use ascii chars if we also add colors (which
             // already have luminosity?)
             //
-            colored_string.push_str(&format!("{}", '█'.stylize().with(color)));
+            colored_string.push_str(&format!("{}", c.stylize().with(color)));
         }
 
         let mut out = stdout();

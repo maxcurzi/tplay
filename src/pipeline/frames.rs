@@ -63,25 +63,29 @@ impl Iterator for FrameIterator {
 }
 fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
     // TODO: fix unwraps and unsafe
-    let data_ptr = mat.data();
-    let data_slice = unsafe {
-        std::slice::from_raw_parts(
-            data_ptr,
-            mat.total() as usize * mat.elem_size().unwrap() as usize,
-        )
-    };
-    let data_vec = data_slice.to_vec();
+    let mut rgb_mat = Mat::default();
+    if imgproc::cvt_color(&mat, &mut rgb_mat, imgproc::COLOR_BGR2RGB, 0).is_ok() {
+        let data_ptr = rgb_mat.data();
+        let data_slice = unsafe {
+            std::slice::from_raw_parts(
+                data_ptr,
+                rgb_mat.total() as usize * rgb_mat.elem_size().unwrap() as usize,
+            )
+        };
+        let data_vec = data_slice.to_vec();
 
-    if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
-        mat.size().unwrap().width as u32,
-        mat.size().unwrap().height as u32,
-        data_vec,
-    ) {
-        let rgb_img = image::RgbImage::from(img_buf);
-        Some(DynamicImage::ImageRgb8(rgb_img))
-    } else {
-        None
+        if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
+            rgb_mat.size().unwrap().width as u32,
+            rgb_mat.size().unwrap().height as u32,
+            data_vec,
+        ) {
+            let rgb_img = image::RgbImage::from(img_buf);
+            return Some(DynamicImage::ImageRgb8(rgb_img));
+        } else {
+            return None;
+        }
     }
+    None
 }
 
 /// Captures the next video frame as a grayscale image.

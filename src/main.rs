@@ -16,7 +16,7 @@ mod downloader;
 mod pipeline;
 mod terminal;
 use crate::common::errors::MyError;
-use crate::pipeline::char_maps::SHORT1;
+use crate::pipeline::char_maps::CHARS1;
 use crate::pipeline::image_pipeline::ImagePipeline;
 use clap::Parser;
 use std::sync::mpsc::{channel, sync_channel};
@@ -40,7 +40,7 @@ struct Args {
     #[arg(short, long, default_value = "60")]
     fps: u64,
     /// Custom lookup char table
-    #[arg(short, long, default_value = SHORT1)]
+    #[arg(short, long, default_value = CHARS1)]
     char_map: String,
     /// Experimental width modifier (emojis have 2x width)
     #[arg(long, default_value = "1")]

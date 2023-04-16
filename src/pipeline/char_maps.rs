@@ -9,8 +9,10 @@
 //! * `LONG1`: A longer character map with 67 characters.
 //! * `LONG2`: An even longer character map with 92 characters.
 
-pub const SHORT1: &str = " .:-=+*#%@"; // 10 chars
-pub const SHORT2: &str = " ░▒▓█"; // 5 chars
-pub const LONG1: &str = " .'`^\",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"; // 67 chars
-pub const LONG2: &str =
+pub const CHARS1: &str = " .:-=+*#%@"; // 10 chars
+pub const CHARS2: &str = " .'`^\",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"; // 67 chars
+pub const CHARS3: &str =
     " `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@"; // 92 chars
+pub const SOLID: &str = "█"; // 1 Solid block
+pub const GRADIENT: &str = " ░▒▓█"; // 5 chars
+pub const BLACKWHITE: &str = " █"; // 2 chars

@@ -10,9 +10,8 @@ use image::DynamicImage;
 use super::frames::FrameIterator;
 use super::image_pipeline::ImagePipeline;
 use crate::common::errors::MyError;
-use crate::pipeline::char_maps::{LONG1, LONG2, SHORT1, SHORT2};
+use crate::pipeline::char_maps::*;
 use crate::StringInfo;
-use image::GenericImageView;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 use std::time::Duration;
@@ -93,10 +92,12 @@ impl Runner {
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_map.clone(),
-            SHORT1.to_string().chars().collect(),
-            SHORT2.to_string().chars().collect(),
-            LONG1.to_string().chars().collect(),
-            LONG2.to_string().chars().collect(),
+            CHARS1.to_string().chars().collect(),
+            CHARS2.to_string().chars().collect(),
+            CHARS3.to_string().chars().collect(),
+            SOLID.to_string().chars().collect(),
+            GRADIENT.to_string().chars().collect(),
+            BLACKWHITE.to_string().chars().collect(),
         ];
 
         Self {
