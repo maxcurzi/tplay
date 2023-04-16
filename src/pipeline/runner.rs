@@ -100,8 +100,11 @@ impl Runner {
             CHARS2.to_string().chars().collect(),
             CHARS3.to_string().chars().collect(),
             SOLID.to_string().chars().collect(),
+            DOTTED.to_string().chars().collect(),
             GRADIENT.to_string().chars().collect(),
             BLACKWHITE.to_string().chars().collect(),
+            BW_DOTTED.to_string().chars().collect(),
+            BRAILLE.to_string().chars().collect(),
         ];
 
         Self {
