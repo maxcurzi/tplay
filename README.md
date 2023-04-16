@@ -38,7 +38,7 @@ View images, videos, webcam, etc directly in the terminal as ASCII art
 - [x] Any resolution, aspect ratio, and framerate
 - [x] Use any character set as supported by your terminal
 - [x] Handy pause/unpause and char map selection [controls](#playback-commands)
-- [ ] Colors (not yet!)
+- [x] RGB Colors (on terminals that support RGB colors)
 - [ ] Sound (not yet!)
 
 
@@ -173,6 +173,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 Ideally I'd like to implement the following features:
 - Sound playback (both audio track of videos and audio files)
 - More media controls (forward, backward, loop, etc.)
+- Any suggestions to improve the installation experience on Windows (Installing and setting up OpenCV is non-trivial)
 
 Let me know if you have any other ideas!
 
