@@ -163,10 +163,8 @@ mod tests {
     #[test]
     fn test_process() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
-        let input = download_image(
-            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
-        )
-        .expect("Failed to download image");
+        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
+            .expect("Failed to download image");
 
         let output = image.resize(&input).unwrap();
         assert_eq!(output.width(), 120);
@@ -176,10 +174,8 @@ mod tests {
     #[test]
     fn test_to_ascii_ext() {
         let image = ImagePipeline::new((120, 80), CHARS1.chars().collect());
-        let input = download_image(
-            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
-        )
-        .expect("Failed to download image");
+        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
+            .expect("Failed to download image");
         let output = image.to_ascii(&image.resize(&input).unwrap().into_luma8());
         assert_eq!(output.chars().count(), 120 * 80);
     }
@@ -187,10 +183,8 @@ mod tests {
     #[test]
     fn test_to_ascii() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
-        let input = download_image(
-            "http://upload.wikimedia.org/wikipedia/en/7/7d/Lenna_%28test_image%29.png",
-        )
-        .expect("Failed to download image");
+        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
+            .expect("Failed to download image");
         let output = image.to_ascii(&image.resize(&input).unwrap().into_luma8());
         assert_eq!(output.len(), 120 * 80);
     }
