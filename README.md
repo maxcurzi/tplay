@@ -120,7 +120,7 @@ tplay <media> [options]
 | `media` | Name of the file or stream to be processed (required). |
 | `-f`, `--fps` | Maximum frames per second for the output (default: 60). |
 | `-c`, `--char_map` | Custom lookup character table to use for the output (default: ` .:-=+*#%@`). |
-| `-w`, `--w_mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
+| `--w_mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
 
 
 ```bash
@@ -156,19 +156,22 @@ tplay /dev/video0 --fps 30
 - `space` - pause/unpause
 - `q` - quit
 - `0-9` - change char map
+- `g` - toggle grayscale/color
 
 ## Known Issues
 - Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator.
+- Media playback is cpu-intensive. To improve performance, try lowering the `fps` value, increase font size, or reduce the terminal window size.
 
 ## Alternatives
-A lot of people have made their own ASCII video players:
+This is my ASCII media player: _there are many like it, but this one is mine._
+
+For other ASCII media players, check out:
 https://github.com/search?q=ascii+player&type=repositories
 
 ## Contributing
 Contributions are welcome! Please open an issue or submit a pull request.
 Ideally I'd like to implement the following features:
-- Colors
-- Sound playback
+- Sound playback (both audio track of videos and audio files)
 - More media controls (forward, backward, loop, etc.)
 
 Let me know if you have any other ideas!
