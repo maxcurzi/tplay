@@ -121,8 +121,15 @@ impl Terminal {
     ///
     /// Returns an error if there is an issue with the terminal operations.
     fn draw(&self, (string, rgb_data): &StringInfo) -> CTResult<()> {
+        let print_string = |string: &str| {
+            let mut out = stdout();
+            execute!(out, MoveTo(0, 0), Print(string), MoveTo(0, 0))?;
+            out.flush()?;
+            Ok(())
+        };
+
         if self.use_grayscale {
-            self._print_string(string)
+            print_string(string)
         } else {
             let mut colored_string = String::with_capacity(string.len() * 10);
             for (c, rgb) in string.chars().zip(rgb_data.chunks(3)) {
@@ -133,15 +140,8 @@ impl Terminal {
                 };
                 colored_string.push_str(&format!("{}", c.stylize().with(color)));
             }
-            self._print_string(&colored_string)
+            print_string(&colored_string)
         }
-    }
-
-    fn _print_string(&self, string: &str) -> CTResult<()> {
-        let mut out = stdout();
-        execute!(out, MoveTo(0, 0), Print(string), MoveTo(0, 0))?;
-        out.flush()?;
-        Ok(())
     }
 
     /// Handles user input events such as pausing/continuing, resizing, and
