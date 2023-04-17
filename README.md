@@ -10,30 +10,32 @@
 
 View images, videos, webcam, etc directly in the terminal as ASCII. All images you see [below](#features) are just made by characters on the terminal command line, drawn really fast.
 
-## Table of Contents
+# Table of Contents
 
 - [Terminal Media Player](#terminal-media-player)
-  - [Table of Contents](#table-of-contents)
-    - [Who is it for?](#who-is-it-for)
-    - [Features](#features)
-  - [Getting Started](#getting-started)
-    - [Prerequisites](#prerequisites)
-    - [Prerequisites installation on Linux](#prerequisites-installation-on-linux)
-    - [Prerequisites installation on Windows](#prerequisites-installation-on-windows)
-    - [Installation](#installation)
-  - [Usage](#usage)
-  - [Contributing](#contributing)
-  - [License](#license)
-  - [Why](#why)
-
-## Who is it for?
+- [Table of Contents](#table-of-contents)
+  - [Who is it for?](#who-is-it-for)
+  - [Features](#features)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+    - [Linux](#prerequisites-installation-on-linux)
+    - [Windows](#prerequisites-installation-on-windows)
+  - [Installation](#installation)
+    - [For developers](#for-developers)
+    - [For users](#for-users)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
+- [Why](#why)
+  
+# Who is it for?
 - You _really_ don't like graphical applications or are working on a computer without graphical capabilities.
 - You are looking for a quick way to convert any visual media to ASCII art.
 - You want to watch a video in the terminal, but you don't want to use `mpv` or `vlc` because they're too mainstream.
 - You like ASCII art so much that you don't need sound to enjoy a good movie.
 - You want to show off your terminal skills to your friends and make them think you're a hacker.
 
-## Features
+# Features
 - [x] Converts and shows any media to ASCII art in the terminal
 - [x] Supports images/gifs/videos/webcam and YouTube links
 - [x] Any resolution, aspect ratio, and framerate
@@ -42,25 +44,25 @@ View images, videos, webcam, etc directly in the terminal as ASCII. All images y
 - [x] RGB Colors (on terminals that support RGB colors)
 - [ ] Sound (not yet!)
 
-### RGB Colors
+## RGB Colors
 ![colors](https://user-images.githubusercontent.com/30084738/232452938-06de4ce6-343d-44de-85d9-5f0c99ab4f27.gif)
-### Live update when updating character size
+## Live update when updating character size
 ![font_size](https://user-images.githubusercontent.com/30084738/231709636-f764862a-d826-4a2e-b54d-6623d145ef41.gif)
-### On-the-fly character map selection
+## On-the-fly character map selection
 ![char_maps](https://user-images.githubusercontent.com/30084738/231709640-496b84ed-3807-4f62-b6b7-ebf9dcbb7bba.gif)
-### Dynamic resize
+## Dynamic resize
 ![resize](https://user-images.githubusercontent.com/30084738/231709632-25af0fde-928e-46c2-bf42-f78a439e6594.gif)
-### Emojis
+## Emojis
 ![emojis](https://user-images.githubusercontent.com/30084738/231709625-084a496c-6557-4398-9361-0ba6ab41a02d.gif)
-### Webcam support
+## Webcam support
 ![webcam](https://user-images.githubusercontent.com/30084738/231712280-d1fe42ae-f430-48f8-a561-83f5609357ee.gif)
 
 
-## Getting Started
+# Getting Started
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
-## Prerequisites
+# Prerequisites
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
@@ -68,7 +70,7 @@ The following dependencies are also required:
 
  Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
-## Prerequisites Installation on Linux
+# Prerequisites Installation on Linux
 If you're on Linux, you can install OpenCV (and the required Clang) with your package manager. For example, on Ubuntu:
 
 ```bash
@@ -90,7 +92,7 @@ If you have troubles installing OpenCV in Windows (I know I have) try this (assu
 
 
 
-## Development:
+# Development:
 You may need to install the following packages on some Linux distributions:
 `libssl-dev` (to run tests)
 `libopencv-dev`
@@ -98,9 +100,8 @@ You may need to install the following packages on some Linux distributions:
 `gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly`
  `clang libclang-dev`
 
-## Installation
-
-A step-by-step guide on how to set up the project for development or usage.
+# Installation
+## For developers
 
 ```bash
 # Clone the repository
@@ -119,6 +120,7 @@ cargo test
 cargo run --release -- <media> [options]
 ```
 
+## For users
 You can install the `tplay` command line tool by running the following command:
 
 ```bash
@@ -127,10 +129,9 @@ cargo install tplay
 ```
 So that you can run it from anywhere as
 ```bash
-# Install the tplay command line tool
 tplay <media> [options]
 ```
-## Usage
+# Usage
 `tplay <media> [options]`
 
 | Argument | Description |
@@ -171,23 +172,23 @@ tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --fps 30 --char-map "🍎🍏�
 tplay /dev/video0 --fps 30
 ```
 
-## Playback commands
+# Playback commands
 - `space` - pause/unpause
 - `q` - quit
 - `0-9` - change char map
 - `g` - toggle grayscale/color
 
-## Known Issues
+# Known Issues
 - Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator.
 - Media playback is cpu-intensive. To improve performance, try lowering the `fps` value, increase font size, or reduce the terminal window size.
 
-## Alternatives
+# Alternatives
 This is my ASCII media player: _there are many like it, but this one is mine._
 
 For other ASCII media players, check out:
 https://github.com/search?q=ascii+player&type=repositories
 
-## Contributing
+# Contributing
 Contributions are welcome! Please open an issue or submit a pull request.
 Ideally I'd like to implement the following features:
 - Sound playback (both audio track of videos and audio files)
@@ -196,10 +197,10 @@ Ideally I'd like to implement the following features:
 
 Let me know if you have any other ideas!
 
-## License
+# License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Why?
+# Why?
 _Your Scientists Were So Preoccupied With Whether Or Not They Could, They Didn’t Stop To Think If They Should_
 
 Mostly did it for fun while learning Rust. I also wanted to see if it was possible to make a video player that could run in the terminal. I think it's pretty cool that you can play videos in the terminal now. I hope you enjoy it too!
