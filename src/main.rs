@@ -19,7 +19,9 @@ use crate::common::errors::MyError;
 use crate::pipeline::char_maps::CHARS1;
 use crate::pipeline::image_pipeline::ImagePipeline;
 use clap::Parser;
+use pipeline::audio::{pause, play_audio, play_audio_process, resume};
 use std::sync::mpsc::{channel, sync_channel};
+use std::time::Duration;
 
 use pipeline::frames::{open_media, FrameIterator};
 
@@ -37,8 +39,8 @@ struct Args {
     #[arg(required = true, index = 1)]
     input: String,
     /// Maximum fps
-    #[arg(short, long, default_value = "60")]
-    fps: u64,
+    #[arg(short, long, default_value = "60.0")]
+    fps: f64,
     /// Custom lookup char table
     #[arg(short, long, default_value = CHARS1)]
     char_map: String,
@@ -57,7 +59,7 @@ struct Args {
 fn main() -> Result<(), MyError> {
     let args = Args::parse();
 
-    let media: FrameIterator = open_media(args.input.clone())?;
+    let (media, audio, fps) = open_media(args.input.clone())?;
 
     // Set up a channel for passing frames and controls
     let (tx_frames, rx_frames) = sync_channel::<Option<StringInfo>>(1);
@@ -69,18 +71,33 @@ fn main() -> Result<(), MyError> {
         term.run().expect("Error running terminal thread");
     });
 
-    // Launch Pipeline Thread
+    // Launch Image Pipeline Thread
     let handle_thread_pipeline = thread::spawn(move || {
         let mut runner = runner::Runner::init(
             ImagePipeline::new((80, 24), args.char_map.chars().collect()),
             media,
-            args.fps,
+            fps.unwrap_or(args.fps),
             tx_frames,
             rx_controls,
             args.w_mod,
         );
         runner.run().expect("Error running pipeline thread");
     });
+
+    // Launch Audio Thread
+    if audio {
+        let handle_thread_audio = thread::spawn(move || {
+            let mut audio_handler = play_audio_process("/tmp/audio.mp3").unwrap();
+            // let mut audio_handler = play_audio("/tmp/audio.mp3").unwrap();
+            // loop {
+            //     resume(&mut audio_handler);
+            //     thread::sleep(Duration::from_secs(1));
+            //     pause(&mut audio_handler);
+            //     thread::sleep(Duration::from_secs(1));
+            // }
+        });
+        let _ = handle_thread_audio.join();
+    }
 
     // Wait for threads to finish
     let _ = handle_thread_pipeline.join();

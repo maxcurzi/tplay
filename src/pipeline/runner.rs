@@ -38,7 +38,7 @@ pub struct Runner {
     /// The FrameIterator that handles iterating through frames.
     media: FrameIterator,
     /// The target frames per second (frame rate) for the Runner.
-    fps: u64,
+    fps: f64,
     /// The current playback state of the Runner.
     state: State,
     /// A channel for receiving processed frames as strings.
@@ -88,7 +88,7 @@ impl Runner {
     pub fn init(
         pipeline: ImagePipeline,
         media: FrameIterator,
-        fps: u64,
+        fps: f64,
         tx_frames: SyncSender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
 
@@ -135,11 +135,15 @@ impl Runner {
         if std::time::Instant::now()
             .duration_since(*time_count)
             .as_micros()
-            < 1_000_000_u64.checked_div(self.fps).unwrap_or(0).into()
+            < (1_000_000_000_u128 / ((self.fps * 1000.0) as u128)) as u128
         {
             return false;
         }
-        *time_count += Duration::from_micros(1_000_000_u64.checked_div(self.fps).unwrap_or(0));
+        *time_count += Duration::from_micros(
+            ((1_000_000_000_u128 / ((self.fps * 1000.0) as u128)) as u128)
+                .try_into()
+                .unwrap_or(0),
+        );
         true
     }
 

@@ -7,7 +7,7 @@ fn extract_audio(input_path: &str, output_path: &str) -> std::io::Result<()> {
         .arg(input_path)
         .arg("-vn") // Disable video
         .arg("-acodec")
-        .arg("mp3") // Use the AAC codec
+        .arg("mp3") // Use the mp3 codec
         .arg("-y") // Overwrite output file if it exists
         // .arg("copy") // Copy audio codec to output without re-encoding
         .arg(output_path)
@@ -76,7 +76,7 @@ fn play_audio(audio_path: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let input_path = "assets/720.mov";
+    let input_path = "assets/eva.webm";
 
     let audio_path = "/tmp/audio_track.mp3";
     if let Ok(fps) = extract_fps(input_path) {

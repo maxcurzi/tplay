@@ -13,6 +13,8 @@ use std::fs::File;
 use std::path::Path;
 use url::Url;
 
+use super::audio::{extract_audio, extract_fps};
+
 /// An iterator over the frames of a media file.
 ///
 /// This enum represents an iterator over the frames of different types of media files, including
@@ -222,26 +224,32 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
 ///
 /// A `Result` containing a `FrameIterator` if the media file is successfully opened, or a `MyError`
 /// if an error occurs.
-pub fn open_media<P: AsRef<Path>>(path: P) -> Result<FrameIterator, MyError> {
+pub fn open_media<P: AsRef<Path>>(path: P) -> Result<(FrameIterator, bool, Option<f64>), MyError> {
     let path = path.as_ref();
     let ext = path.extension().and_then(std::ffi::OsStr::to_str);
+    let mut fps = None;
 
+    if let Ok(fpsf) = extract_fps(path.as_os_str().to_str().unwrap_or("")) {
+        // println!("FPS: {}", fps);
+        fps = Some(fpsf);
+    }
+    let audio = extract_audio(path.as_os_str().to_str().unwrap_or(""), "/tmp/audio.mp3");
     // Check if the path is a URL and has a YouTube domain
     if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
         if let Some(domain) = url.domain() {
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
                 let video = youtube::download_video(path.to_str().unwrap_or(""))?;
-                return open_video(&video);
+                return Ok((open_video(&video)?, audio.is_ok(), fps));
             }
         }
     }
 
     match ext {
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
-        | Some("jpeg") => open_image(path),
+        | Some("jpeg") => Ok((open_image(path)?, false, None)),
         Some("mp4") | Some("avi") | Some("webm") | Some("mkv") | Some("mov") | Some("flv")
-        | Some("ogg") => open_video(path),
-        Some("gif") => open_gif(path),
-        _ => open_video(path), // Unknown extension, try to open as video anyway
+        | Some("ogg") => Ok((open_video(path)?, audio.is_ok(), fps)),
+        Some("gif") => Ok((open_gif(path)?, false, None)),
+        _ => Ok((open_video(path)?, audio.is_ok(), fps)), // Unknown extension, try to open as video anyway
     }
 }
