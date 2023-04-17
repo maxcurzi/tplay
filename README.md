@@ -120,6 +120,7 @@ tplay <media> [options]
 | `media` | Name of the file or stream to be processed (required). |
 | `-f`, `--fps` | Maximum frames per second for the output (default: 60). |
 | `-c`, `--char_map` | Custom lookup character table to use for the output (default: ` .:-=+*#%@`). |
+| `-g`, `--gray` | Start in grayscale mode |
 | `--w_mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
 
 
