@@ -27,7 +27,7 @@ View images, videos, webcam, etc directly in the terminal as ASCII. All images y
 - [Contributing](#contributing)
 - [License](#license)
 - [Why](#why)
-  
+
 # Who is it for?
 - You _really_ don't like graphical applications or are working on a computer without graphical capabilities.
 - You are looking for a quick way to convert any visual media to ASCII art.
@@ -179,7 +179,8 @@ tplay /dev/video0 --fps 30
 - `g` - toggle grayscale/color
 
 # Known Issues
-- Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator.
+- Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) which has great performance on all operative systems I tested tplay on (Linux, Windows).
+- Video FPS is not automatically detected and it defaults to 60fps unless you manually set a value using the `--fps` argument.
 - Media playback is cpu-intensive. To improve performance, try lowering the `fps` value, increase font size, or reduce the terminal window size.
 
 # Alternatives
@@ -193,9 +194,8 @@ Contributions are welcome! Please open an issue or submit a pull request.
 Ideally I'd like to implement the following features:
 - Sound playback (both audio track of videos and audio files)
 - More media controls (forward, backward, loop, etc.)
-- Any suggestions to improve the installation experience on Windows (Installing and setting up OpenCV is non-trivial)
-
-Let me know if you have any other ideas!
+- Testing and feedback on installing and running it on MacOS
+- Let me know if you have any other ideas!
 
 # License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
