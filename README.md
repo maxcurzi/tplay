@@ -8,7 +8,7 @@
 [![Crates.io](https://img.shields.io/crates/d/tplay)](https://crates.io/crates/tplay)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-View images, videos, webcam, etc directly in the terminal as ASCII art
+View images, videos, webcam, etc directly in the terminal as ASCII. All images you see [below](#features) are just made by characters on the terminal command line, drawn really fast.
 
 ## Table of Contents
 
@@ -20,7 +20,6 @@ View images, videos, webcam, etc directly in the terminal as ASCII art
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
   - [Usage](#usage)
-  - [Documentation](#documentation)
   - [Contributing](#contributing)
   - [License](#license)
   - [Why](#why)
@@ -41,7 +40,8 @@ View images, videos, webcam, etc directly in the terminal as ASCII art
 - [x] RGB Colors (on terminals that support RGB colors)
 - [ ] Sound (not yet!)
 
-
+### RGB Colors
+![colors](https://user-images.githubusercontent.com/30084738/232452938-06de4ce6-343d-44de-85d9-5f0c99ab4f27.gif)
 ### Live update when updating character size
 ![font_size](https://user-images.githubusercontent.com/30084738/231709636-f764862a-d826-4a2e-b54d-6623d145ef41.gif)
 ### On-the-fly character map selection
