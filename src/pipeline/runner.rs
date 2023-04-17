@@ -167,7 +167,7 @@ impl Runner {
             if self.should_process_frame(&mut time_count) {
                 let frame = self.get_current_frame();
 
-                // Use crossbeam-channel's select! macro to check if terminal is ready for the next frame
+                // Check if terminal is ready for the next frame
                 select! {
                     send(self.tx_frames, None) -> _ => {
                         let string_info = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
