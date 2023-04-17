@@ -18,6 +18,8 @@ View images, videos, webcam, etc directly in the terminal as ASCII. All images y
     - [Features](#features)
   - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
+    - [Prerequisites installation on Linux](#prerequisites-installation-on-linux)
+    - [Prerequisites installation on Windows](#prerequisites-installation-on-windows)
     - [Installation](#installation)
   - [Usage](#usage)
   - [Contributing](#contributing)
@@ -62,15 +64,31 @@ These instructions will get you a copy of the project up and running on your loc
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
-[OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv)
-If you have troubles in Windows (I know I have) try this (assuming you have a relatively modern computer with a Windows 64bit installation):
-- Using [vcpkg](https://vcpkg.io/en/): ` .\vcpkg install opencv4[contrib,nonfree] --triplet x64-windows` from an administrator powershell within the vcpkg directory.
-- Then, install [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) from binary, you'll likely want to use the 64-bit version on a modern computer.
-- Make sure that the environment variable OPENCV_LINK_LIBS is set to just `opencv_core4`.
+[OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv), [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
+
+ Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
+
+## Prerequisites Installation on Linux
+If you're on Linux, you can install OpenCV (and the required Clang) with your package manager. For example, on Ubuntu:
+
+```bash
+sudo apt install libopencv-dev clang libclang-dev
+```
+
+## Prerequisites installation on Windows
+If you have troubles installing OpenCV in Windows (I know I have) try this (assuming you have a relatively modern computer with a Windows 64bit installation):
+- Download OpenCV prebuilt binaries (I used this [one](https://sourceforge.net/projects/opencvlibrary/)) and it was 4.6.0 at the time of writing.
+- Open the package and extract the `opencv` folder to `C:\opencv` or any other location you prefer.
+- Set the following environment variables (update the paths if you extracted the package to a different location):
+  - OPENCV_INCLUDE_PATHS = `C:\opencv\build\include`
+  - OPENCV_LINK_LIBS = `opencv_world460` (or whatever version you have, for OpenCV 4.7.0 you want `opencv_world470`)
+  - OPENCV_LINK_PATHS = `C:\opencv\build\x64\vc15\lib`
+  - Also add this to your PATH variable : `C:\opencv\build\x64\vc15\bin`
+
+- Install [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) from binary, you'll likely want to use the 64-bit version on a modern computer.
+  - Add this to your PATH variable (or whatever corresponding directory you have on your computer): `C:\Program Files\LLVM\bin`
 
 
-
-Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
 ## Development:
 You may need to install the following packages on some Linux distributions:
