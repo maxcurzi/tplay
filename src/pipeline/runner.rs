@@ -5,16 +5,11 @@
 //! processing frames, managing playback state, and controlling the frame rate.
 //! It also handles commands for pausing/continuing, resizing, and changing
 //! character maps during playback.
+use super::{frames::FrameIterator, image_pipeline::ImagePipeline};
+use crate::{common::errors::MyError, pipeline::char_maps::*, StringInfo};
+use crossbeam_channel::{select, Receiver, Sender};
 use image::DynamicImage;
-
-use super::frames::FrameIterator;
-use super::image_pipeline::ImagePipeline;
-use crate::common::errors::MyError;
-use crate::pipeline::char_maps::*;
-use crate::StringInfo;
-use std::sync::mpsc::{Receiver, SyncSender};
-use std::thread;
-use std::time::Duration;
+use std::{thread, time::Duration};
 
 /// Represents the playback state of the Runner.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -42,7 +37,7 @@ pub struct Runner {
     /// The current playback state of the Runner.
     state: State,
     /// A channel for receiving processed frames as strings.
-    tx_frames: SyncSender<Option<StringInfo>>,
+    tx_frames: Sender<Option<StringInfo>>,
     /// A channel for sending control commands to the Runner.
     rx_controls: Receiver<Control>,
     /// The width modifier (use 2 for emojis).
@@ -89,7 +84,7 @@ impl Runner {
         pipeline: ImagePipeline,
         media: FrameIterator,
         fps: u64,
-        tx_frames: SyncSender<Option<StringInfo>>,
+        tx_frames: Sender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
 
         w_mod: u32,
@@ -172,19 +167,19 @@ impl Runner {
             if self.should_process_frame(&mut time_count) {
                 let frame = self.get_current_frame();
 
-                // Check if the buffer is not full with a try_send(None), and don't process/add frames if so.
-                // This allows to drop frames but keep the video in sync if the terminal is too slow.
-                if self.tx_frames.try_send(None).is_ok() {
-                    let string_info =
-                        self.process_current_frame(frame.as_ref(), frame_needs_refresh);
-                    let _ = self.tx_frames.try_send(string_info); // Best effort send. If the buffer is full the frame will be dropped
-                } else {
-                    // Terminal may be struggling to keep up. Give it time to pick up messages in the buffer
-                    thread::sleep(Duration::from_millis(10));
+                // Use crossbeam-channel's select! macro to check if terminal is ready for the next frame
+                select! {
+                    send(self.tx_frames, None) -> _ => {
+                        let string_info = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
+                        let _ = self.tx_frames.try_send(string_info); // Best effort send. If the buffer is full the frame will be dropped
+                    },
+                    default(Duration::from_millis(5)) => {
+                        // Terminal may be struggling to keep up. Give it some slack!
+                    }
                 }
             } else {
                 // Be a nice thread
-                thread::sleep(Duration::from_millis(0));
+                thread::yield_now();
             }
         }
         Ok(())

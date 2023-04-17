@@ -1,11 +1,10 @@
 //! The `ImagePipeline` module contains a struct and implementation for converting images to ASCII
 //! art. It provides a pipeline for processing images, resizing them, and converting them to ASCII
 //! representations using a character lookup table.
+use crate::common::errors::*;
 use fast_image_resize as fr;
 use image::{DynamicImage, GrayImage};
 use std::num::NonZeroU32;
-
-use crate::common::errors::*;
 
 /// The `ImagePipeline` struct encapsulates the process of converting an image to ASCII art. It
 /// stores the target resolution (width and height) and the character lookup table used for the

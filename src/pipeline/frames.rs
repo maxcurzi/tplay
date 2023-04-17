@@ -3,14 +3,11 @@
 //! This module contains the `FrameIterator` enum and its associated functions for handling
 //! different media types such as images, videos, and animated GIFs. It also includes helper
 //! functions to open and process media files, as well as downloading and opening YouTube videos.
-use crate::common::errors::*;
-use crate::downloader::youtube;
+use crate::{common::errors::*, downloader::youtube};
 use gif;
-use image::io::Reader as ImageReader;
-use image::{DynamicImage, ImageBuffer};
+use image::{io::Reader as ImageReader, DynamicImage, ImageBuffer};
 use opencv::{imgproc, prelude::*, videoio::VideoCapture};
-use std::fs::File;
-use std::path::Path;
+use std::{fs::File, path::Path};
 use url::Url;
 
 /// An iterator over the frames of a media file.

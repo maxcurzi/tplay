@@ -10,25 +10,25 @@
 //! receiving the processed frames from the media processing thread.
 //! The media processing thread and the terminal thread communicate via a
 //! shared buffer.
-//!
 mod common;
 mod downloader;
 mod pipeline;
 mod terminal;
-use crate::common::errors::MyError;
-use crate::pipeline::char_maps::CHARS1;
-use crate::pipeline::image_pipeline::ImagePipeline;
+
 use clap::Parser;
-use std::sync::mpsc::{channel, sync_channel};
-
-use pipeline::frames::{open_media, FrameIterator};
-
-use pipeline::runner;
-
-use pipeline::runner::Control;
+use common::errors::MyError;
+use crossbeam_channel::{bounded, unbounded};
+use pipeline::{
+    char_maps::CHARS1,
+    frames::{open_media, FrameIterator},
+    image_pipeline::ImagePipeline,
+    runner::{self, Control},
+};
 use std::thread;
 use terminal::Terminal;
+
 pub type StringInfo = (String, Vec<u8>);
+
 /// Command line arguments structure.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -60,8 +60,8 @@ fn main() -> Result<(), MyError> {
     let media: FrameIterator = open_media(args.input.clone())?;
 
     // Set up a channel for passing frames and controls
-    let (tx_frames, rx_frames) = sync_channel::<Option<StringInfo>>(1);
-    let (tx_controls, rx_controls) = channel::<Control>();
+    let (tx_frames, rx_frames) = bounded::<Option<StringInfo>>(1);
+    let (tx_controls, rx_controls) = unbounded::<Control>();
 
     // Launch Terminal Thread
     let handle_thread_terminal = thread::spawn(move || {
