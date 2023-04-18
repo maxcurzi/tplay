@@ -50,6 +50,8 @@ struct Args {
     w_mod: u32,
 }
 
+const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
+
 /// Main function for the application.
 ///
 /// This function parses command line arguments, opens the media, initializes the
@@ -72,7 +74,7 @@ fn main() -> Result<(), MyError> {
     // Launch Pipeline Thread
     let handle_thread_pipeline = thread::spawn(move || {
         let mut runner = runner::Runner::init(
-            ImagePipeline::new((80, 24), args.char_map.chars().collect()),
+            ImagePipeline::new(DEFAULT_TERMINAL_SIZE, args.char_map.chars().collect()),
             media,
             args.fps,
             tx_frames,
