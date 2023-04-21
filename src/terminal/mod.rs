@@ -1,7 +1,7 @@
 //! The `terminal` module provides functionality for displaying an animation in
 //! the terminal and handling user input events such as pausing/continuing,
 //! resizing, and changing character maps.
-use crate::{common::errors::*, runner::Control, StringInfo};
+use crate::{common::errors::*, pipeline::runner::Control, StringInfo};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
@@ -44,6 +44,8 @@ pub struct Terminal {
     tx_control: Sender<Control>,
     /// Whether to use grayscale colors.
     use_grayscale: bool,
+    /// Barrier
+    barrier: std::sync::Arc<std::sync::Barrier>,
 }
 
 impl Terminal {
@@ -57,6 +59,7 @@ impl Terminal {
         use_grayscale: bool,
         rx_buffer: Receiver<Option<StringInfo>>,
         tx_control: Sender<Control>,
+        barrier: std::sync::Arc<std::sync::Barrier>,
     ) -> Self {
         Self {
             fg_color: Color::White,
@@ -66,6 +69,7 @@ impl Terminal {
             rx_buffer,
             tx_control,
             use_grayscale,
+            barrier,
         }
     }
 
@@ -256,6 +260,7 @@ impl Terminal {
         let (width, height) = terminal::size()?;
         self.send_control(Control::Resize(width, height))?;
 
+        self.barrier.wait();
         // Begin drawing and event loop
         while self.state != State::Stopped {
             // Poll and handle events

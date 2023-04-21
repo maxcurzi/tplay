@@ -46,6 +46,8 @@ pub struct Runner {
     char_maps: Vec<Vec<char>>,
     /// The last frame that was processed by the Runner.
     last_frame: Option<DynamicImage>,
+    /// Barrier
+    barrier: std::sync::Arc<std::sync::Barrier>,
 }
 
 /// Enum representing the different control commands that can be sent to the Runner.
@@ -86,8 +88,8 @@ impl Runner {
         fps: f64,
         tx_frames: Sender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
-
         w_mod: u32,
+        barrier: std::sync::Arc<std::sync::Barrier>,
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_map.clone(),
@@ -112,6 +114,7 @@ impl Runner {
             w_mod,
             char_maps,
             last_frame: None,
+            barrier,
         }
     }
 
@@ -163,8 +166,8 @@ impl Runner {
     /// updates the state of the Runner, processes frames, and sends the resulting ASCII strings
     /// to the string buffer.
     pub fn run(&mut self) -> Result<(), MyError> {
-        let mut time_count = std::time::Instant::now();
-
+        self.barrier.wait();
+        let mut time_count = std::time::Instant::now() - Duration::from_millis(1000); // Reduce time to ensure first frame is done asap
         while self.state != State::Stopped {
             let frame_needs_refresh = self.process_control_commands();
 

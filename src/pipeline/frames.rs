@@ -3,14 +3,18 @@
 //! This module contains the `FrameIterator` enum and its associated functions for handling
 //! different media types such as images, videos, and animated GIFs. It also includes helper
 //! functions to open and process media files, as well as downloading and opening YouTube videos.
-use crate::{common::errors::*, downloader::youtube};
+use crate::{audio::utils::has_audio, common::errors::*, downloader::youtube};
 use gif;
 use image::{io::Reader as ImageReader, DynamicImage, ImageBuffer};
 use opencv::{imgproc, prelude::*, videoio::VideoCapture};
-use std::{fs::File, path::Path};
+use serde_json::Value;
+use std::{
+    fs::File,
+    io,
+    path::Path,
+    process::{Command, Stdio},
+};
 use url::Url;
-
-use super::audio::{extract_audio, extract_fps};
 
 /// An iterator over the frames of a media file.
 ///
@@ -206,6 +210,43 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
     })
 }
 
+fn extract_fps(video_path: &str) -> Result<f64, Box<dyn std::error::Error>> {
+    let output = Command::new("ffprobe")
+        .arg("-v")
+        .arg("error")
+        .arg("-select_streams")
+        .arg("v:0")
+        .arg("-show_entries")
+        .arg("stream=r_frame_rate")
+        .arg("-of")
+        .arg("json")
+        .arg(video_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()?;
+
+    let output_str = String::from_utf8(output.stdout)?;
+    let json_value: Value = serde_json::from_str(&output_str)?;
+    let r_frame_rate = json_value["streams"][0]["r_frame_rate"]
+        .as_str()
+        .ok_or("Failed to get r_frame_rate")?;
+
+    let (num, denom) = {
+        let mut iter = r_frame_rate.split('/');
+        (
+            iter.next()
+                .ok_or("Invalid r_frame_rate format")?
+                .parse::<f64>()?,
+            iter.next()
+                .ok_or("Invalid r_frame_rate format")?
+                .parse::<f64>()?,
+        )
+    };
+
+    let fps = num / denom;
+    Ok(fps)
+}
+
 /// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
 ///
 /// This function accepts a path to a media file and determines its type based on its extension. It
@@ -221,7 +262,7 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
 ///
 /// A `Result` containing a `FrameIterator` if the media file is successfully opened, or a `MyError`
 /// if an error occurs.
-pub fn open_media<P: AsRef<Path>>(path: P) -> Result<(FrameIterator, bool, Option<f64>), MyError> {
+pub fn open_media<P: AsRef<Path>>(path: &P) -> Result<(FrameIterator, bool, Option<f64>), MyError> {
     let path = path.as_ref();
     let ext = path.extension().and_then(std::ffi::OsStr::to_str);
     let mut fps = None;
@@ -230,7 +271,8 @@ pub fn open_media<P: AsRef<Path>>(path: P) -> Result<(FrameIterator, bool, Optio
         // println!("FPS: {}", fps);
         fps = Some(fpsf);
     }
-    let audio = extract_audio(path.as_os_str().to_str().unwrap_or(""), "/tmp/audio.mp3");
+    let audio = has_audio(path.as_os_str().to_str().unwrap_or(""));
+
     // Check if the path is a URL and has a YouTube domain
     if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
         if let Some(domain) = url.domain() {
