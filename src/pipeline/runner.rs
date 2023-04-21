@@ -167,7 +167,7 @@ impl Runner {
     /// to the string buffer.
     pub fn run(&mut self) -> Result<(), MyError> {
         self.barrier.wait();
-        let mut time_count = std::time::Instant::now() - Duration::from_millis(1000); // Reduce time to ensure first frame is done asap
+        let mut time_count = std::time::Instant::now();
         while self.state != State::Stopped {
             let frame_needs_refresh = self.process_control_commands();
 

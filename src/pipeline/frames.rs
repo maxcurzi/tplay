@@ -271,14 +271,14 @@ pub fn open_media<P: AsRef<Path>>(path: &P) -> Result<(FrameIterator, bool, Opti
         // println!("FPS: {}", fps);
         fps = Some(fpsf);
     }
-    let audio = has_audio(path.as_os_str().to_str().unwrap_or(""));
+    let audio = has_audio(path.as_os_str().to_str().unwrap_or(""))?;
 
     // Check if the path is a URL and has a YouTube domain
     if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
         if let Some(domain) = url.domain() {
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
                 let video = youtube::download_video(path.to_str().unwrap_or(""))?;
-                return Ok((open_video(&video)?, audio.is_ok(), fps));
+                return Ok((open_video(&video)?, audio, fps));
             }
         }
     }
@@ -287,8 +287,8 @@ pub fn open_media<P: AsRef<Path>>(path: &P) -> Result<(FrameIterator, bool, Opti
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
         | Some("jpeg") => Ok((open_image(path)?, false, None)),
         Some("mp4") | Some("avi") | Some("webm") | Some("mkv") | Some("mov") | Some("flv")
-        | Some("ogg") => Ok((open_video(path)?, audio.is_ok(), fps)),
+        | Some("ogg") => Ok((open_video(path)?, audio, fps)),
         Some("gif") => Ok((open_gif(path)?, false, None)),
-        _ => Ok((open_video(path)?, audio.is_ok(), fps)), // Unknown extension, try to open as video anyway
+        _ => Ok((open_video(path)?, audio, fps)), // Unknown extension, try to open as video anyway
     }
 }
