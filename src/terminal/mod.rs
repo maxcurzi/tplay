@@ -2,18 +2,17 @@
 //! the terminal and handling user input events such as pausing/continuing,
 //! resizing, and changing character maps.
 use crate::{common::errors::*, runner::Control, StringInfo};
+use crossbeam_channel::{Receiver, Sender};
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, Event, KeyCode, KeyEvent},
     execute,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor, Stylize},
-    terminal,
-    terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
+    terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
     Result as CTResult,
 };
 use std::{
     io::{stdout, Write},
-    sync::{mpsc::Receiver, mpsc::Sender},
     time::Duration,
 };
 
@@ -266,7 +265,7 @@ impl Terminal {
             }
 
             // Wait for next frame to draw
-            if let Ok(Some(s)) = self.rx_buffer.recv_timeout(Duration::from_millis(5)) {
+            if let Ok(Some(s)) = self.rx_buffer.try_recv() {
                 self.draw(&s)?;
             };
         }

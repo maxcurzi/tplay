@@ -10,27 +10,28 @@
 //! receiving the processed frames from the media processing thread.
 //! The media processing thread and the terminal thread communicate via a
 //! shared buffer.
-//!
 mod common;
 mod downloader;
 mod pipeline;
 mod terminal;
-use crate::common::errors::MyError;
-use crate::pipeline::char_maps::CHARS1;
-use crate::pipeline::image_pipeline::ImagePipeline;
+
 use clap::Parser;
+use common::errors::MyError;
+use crossbeam_channel::{bounded, unbounded};
 use pipeline::audio::{pause, play_audio, play_audio_process, resume};
-use std::sync::mpsc::{channel, sync_channel};
 use std::time::Duration;
 
-use pipeline::frames::{open_media, FrameIterator};
-
-use pipeline::runner;
-
-use pipeline::runner::Control;
+use pipeline::{
+    char_maps::CHARS1,
+    frames::{open_media, FrameIterator},
+    image_pipeline::ImagePipeline,
+    runner::{self, Control},
+};
 use std::thread;
 use terminal::Terminal;
+
 pub type StringInfo = (String, Vec<u8>);
+
 /// Command line arguments structure.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -52,6 +53,8 @@ struct Args {
     w_mod: u32,
 }
 
+const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
+
 /// Main function for the application.
 ///
 /// This function parses command line arguments, opens the media, initializes the
@@ -62,8 +65,8 @@ fn main() -> Result<(), MyError> {
     let (media, audio, fps) = open_media(args.input.clone())?;
 
     // Set up a channel for passing frames and controls
-    let (tx_frames, rx_frames) = sync_channel::<Option<StringInfo>>(1);
-    let (tx_controls, rx_controls) = channel::<Control>();
+    let (tx_frames, rx_frames) = bounded::<Option<StringInfo>>(1);
+    let (tx_controls, rx_controls) = unbounded::<Control>();
 
     // Launch Terminal Thread
     let handle_thread_terminal = thread::spawn(move || {
@@ -74,7 +77,7 @@ fn main() -> Result<(), MyError> {
     // Launch Image Pipeline Thread
     let handle_thread_pipeline = thread::spawn(move || {
         let mut runner = runner::Runner::init(
-            ImagePipeline::new((80, 24), args.char_map.chars().collect()),
+            ImagePipeline::new(DEFAULT_TERMINAL_SIZE, args.char_map.chars().collect()),
             media,
             fps.unwrap_or(args.fps),
             tx_frames,

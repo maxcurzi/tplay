@@ -1,11 +1,10 @@
 //! The `ImagePipeline` module contains a struct and implementation for converting images to ASCII
 //! art. It provides a pipeline for processing images, resizing them, and converting them to ASCII
 //! representations using a character lookup table.
+use crate::common::errors::*;
 use fast_image_resize as fr;
 use image::{DynamicImage, GrayImage};
 use std::num::NonZeroU32;
-
-use crate::common::errors::*;
 
 /// The `ImagePipeline` struct encapsulates the process of converting an image to ASCII art. It
 /// stores the target resolution (width and height) and the character lookup table used for the
@@ -143,6 +142,8 @@ mod tests {
     use reqwest;
     use std::io::Cursor;
 
+    const TEST_IMAGE_URL: &str = "https://sipi.usc.edu/database/preview/misc/4.1.01.png";
+
     fn download_image(url: &str) -> Result<DynamicImage, ImageError> {
         let response = reqwest::blocking::get(url)
             .expect("Failed to download image")
@@ -163,8 +164,7 @@ mod tests {
     #[test]
     fn test_process() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
-        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
-            .expect("Failed to download image");
+        let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
 
         let output = image.resize(&input).unwrap();
         assert_eq!(output.width(), 120);
@@ -174,8 +174,7 @@ mod tests {
     #[test]
     fn test_to_ascii_ext() {
         let image = ImagePipeline::new((120, 80), CHARS1.chars().collect());
-        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
-            .expect("Failed to download image");
+        let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
         let output = image.to_ascii(&image.resize(&input).unwrap().into_luma8());
         assert_eq!(output.chars().count(), 120 * 80);
     }
@@ -183,8 +182,7 @@ mod tests {
     #[test]
     fn test_to_ascii() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
-        let input = download_image("https://sipi.usc.edu/database/preview/misc/4.1.01.png")
-            .expect("Failed to download image");
+        let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
         let output = image.to_ascii(&image.resize(&input).unwrap().into_luma8());
         assert_eq!(output.len(), 120 * 80);
     }

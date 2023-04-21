@@ -5,12 +5,9 @@
 //! The function returns a temporary file path to the downloaded video.
 //! The temporary file is deleted when the file is closed.
 //! The temporary file is created in a temporary directory (OS dependent).
-use std::process::Command;
-use std::process::Stdio;
-use tempfile;
-use tempfile::TempPath;
-
 use crate::common::errors::MyError;
+use std::process::{Command, Stdio};
+use tempfile::{self, TempPath};
 
 /// Downloads a video from the given URL using `yt-dlp` and saves it to a temporary file.
 ///
