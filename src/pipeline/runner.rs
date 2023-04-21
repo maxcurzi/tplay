@@ -83,7 +83,7 @@ impl Runner {
     pub fn init(
         pipeline: ImagePipeline,
         media: FrameIterator,
-        fps: u64,
+        fps: f64,
         tx_frames: Sender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
 
