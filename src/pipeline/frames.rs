@@ -14,6 +14,7 @@ use std::{
     path::Path,
     process::{Command, Stdio},
 };
+use tempfile::TempPath;
 use url::Url;
 
 /// An iterator over the frames of a media file.
@@ -262,33 +263,50 @@ fn extract_fps(video_path: &str) -> Result<f64, Box<dyn std::error::Error>> {
 ///
 /// A `Result` containing a `FrameIterator` if the media file is successfully opened, or a `MyError`
 /// if an error occurs.
-pub fn open_media<P: AsRef<Path>>(path: &P) -> Result<(FrameIterator, bool, Option<f64>), MyError> {
+pub fn open_media<P: AsRef<Path>>(
+    path: &P,
+) -> Result<(FrameIterator, Option<f64>, Option<TempPath>), MyError> {
     let path = path.as_ref();
     let ext = path.extension().and_then(std::ffi::OsStr::to_str);
     let mut fps = None;
 
     if let Ok(fpsf) = extract_fps(path.as_os_str().to_str().unwrap_or("")) {
-        // println!("FPS: {}", fps);
         fps = Some(fpsf);
     }
-    let audio = has_audio(path.as_os_str().to_str().unwrap_or(""))?;
 
     // Check if the path is a URL and has a YouTube domain
     if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
         if let Some(domain) = url.domain() {
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
                 let video = youtube::download_video(path.to_str().unwrap_or(""))?;
-                return Ok((open_video(&video)?, audio, fps));
+                // // let video_str = video.as_os_str().to_str().unwrap_or("");
+                // let audio = has_audio(video.as_os_str().to_str().unwrap())?;
+                // let audio_track = if audio {
+                //     let xx = video.as_os_str().to_str().unwrap().to_string();
+                //     Some(TempPath::from_path(xx.as_str()))
+                // } else {
+                //     None
+                // };
+                let video_open = open_video(&video)?;
+                return Ok((video_open, fps, Some(video)));
             }
         }
     }
 
+    let audio = has_audio(path.as_os_str().to_str().unwrap_or(""))?;
+    // let audio_track = if audio {
+    //     Some(TempPath::from_path(
+    //         path.as_os_str().to_str().unwrap_or("").to_string(),
+    //     ))
+    // } else {
+    //     None
+    // };
     match ext {
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
-        | Some("jpeg") => Ok((open_image(path)?, false, None)),
+        | Some("jpeg") => Ok((open_image(path)?, None, None)),
         Some("mp4") | Some("avi") | Some("webm") | Some("mkv") | Some("mov") | Some("flv")
-        | Some("ogg") => Ok((open_video(path)?, audio, fps)),
-        Some("gif") => Ok((open_gif(path)?, false, None)),
-        _ => Ok((open_video(path)?, audio, fps)), // Unknown extension, try to open as video anyway
+        | Some("ogg") => Ok((open_video(path)?, fps, None)),
+        Some("gif") => Ok((open_gif(path)?, None, None)),
+        _ => Ok((open_video(path)?, fps, None)), // Unknown extension, try to open as video anyway
     }
 }

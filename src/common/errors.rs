@@ -18,6 +18,9 @@ pub enum MyError {
 
     #[error("Terminal error: {0}")]
     Terminal(String),
+
+    #[error("Audio error: {0}")]
+    Audio(String),
 }
 
 impl From<MyError> for io::Error {

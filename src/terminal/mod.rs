@@ -1,7 +1,7 @@
 //! The `terminal` module provides functionality for displaying an animation in
 //! the terminal and handling user input events such as pausing/continuing,
 //! resizing, and changing character maps.
-use crate::{common::errors::*, pipeline::runner::Control, StringInfo};
+use crate::{common::errors::*, msg::broker::Control as MediaControl, StringInfo};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
@@ -41,7 +41,7 @@ pub struct Terminal {
     /// The channel for receiving the processed frames from the media processing thread.
     rx_buffer: Receiver<Option<StringInfo>>,
     /// The channel for sending control events to the media processing thread.
-    tx_control: Sender<Control>,
+    tx_control: Sender<MediaControl>,
     /// Whether to use grayscale colors.
     use_grayscale: bool,
     /// Barrier
@@ -58,7 +58,7 @@ impl Terminal {
         title: String,
         use_grayscale: bool,
         rx_buffer: Receiver<Option<StringInfo>>,
-        tx_control: Sender<Control>,
+        tx_control: Sender<MediaControl>,
         barrier: std::sync::Arc<std::sync::Barrier>,
     ) -> Self {
         Self {
@@ -174,13 +174,15 @@ impl Terminal {
                 code: KeyCode::Esc, ..
             }) => {
                 self.state = State::Stopped;
-                self.send_control(Control::Exit)?;
+                self.send_control(MediaControl::Exit)?;
             }
+
+            // Pause/Continue
             Event::Key(KeyEvent {
                 code: KeyCode::Char(' '),
                 ..
             }) => {
-                self.send_control(Control::PauseContinue)?;
+                self.send_control(MediaControl::PauseContinue)?;
                 self.state = match self.state {
                     State::Running => State::Paused,
                     State::Paused => State::Running,
@@ -190,7 +192,7 @@ impl Terminal {
 
             // Resize
             Event::Resize(width, height) => {
-                self.send_control(Control::Resize(width, height))?;
+                self.send_control(MediaControl::Resize(width, height))?;
                 // Drain buffer
                 while self
                     .rx_buffer
@@ -204,7 +206,7 @@ impl Terminal {
                 code: KeyCode::Char(digit),
                 ..
             }) if digit.is_ascii_digit() => {
-                self.send_control(Control::SetCharMap(digit.to_digit(10).unwrap_or_else(
+                self.send_control(MediaControl::SetCharMap(digit.to_digit(10).unwrap_or_else(
                     || panic!("{error}: {digit:?}", error = ERROR_PARSE_DIGIT_FAILED),
                 )))?;
             }
@@ -215,8 +217,17 @@ impl Terminal {
                 ..
             }) => {
                 self.use_grayscale = !self.use_grayscale;
-                self.send_control(Control::SetGrayscale(self.use_grayscale))?;
+                self.send_control(MediaControl::SetGrayscale(self.use_grayscale))?;
             }
+
+            // Mute/unmute
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('m') | KeyCode::Char('M'),
+                ..
+            }) => {
+                self.send_control(MediaControl::MuteUnmute)?;
+            }
+
             _ => {}
         }
         Ok(())
@@ -232,7 +243,7 @@ impl Terminal {
     ///
     /// Returns an error if there is an issue with the terminal operations.
     /// or communication with the pipeline.
-    fn send_control(&self, control: Control) -> Result<(), MyError> {
+    fn send_control(&self, control: MediaControl) -> Result<(), MyError> {
         self.tx_control
             .send(control)
             .map_err(|e| MyError::Terminal(format!("{error}: {e:?}", error = ERROR_CHANNEL, e = e)))
@@ -258,7 +269,7 @@ impl Terminal {
 
         // Initialize terminal size and pass terminal size to pipeline
         let (width, height) = terminal::size()?;
-        self.send_control(Control::Resize(width, height))?;
+        self.send_control(MediaControl::Resize(width, height))?;
 
         self.barrier.wait();
         // Begin drawing and event loop

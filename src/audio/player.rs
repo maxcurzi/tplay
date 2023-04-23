@@ -1,105 +1,120 @@
+//! The audio::player module contains the AudioPlayer struct and related functionality for
+//! controlling and playing audio files.
+//!
+//! The AudioPlayer struct is responsible for handling audio playback, including play, pause,
+//! mute, unmute, and stop commands.
 use mpv::MpvHandler;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use tempfile::NamedTempFile;
 
+use crate::common::errors::MyError;
+
+/// The AudioPlayer struct handles audio playback using the mpv backend.
 pub struct AudioPlayer {
+    /// The mpv handler responsible for managing the audio playback.
     mpv: MpvHandler,
 }
 
 impl AudioPlayer {
-    pub fn new(input_path: &str) -> Self {
+    /// Creates a new AudioPlayer instance.
+    ///
+    /// # Arguments
+    ///
+    /// * input_path - The path to the audio file to be played.
+    ///
+    /// # Returns
+    ///
+    /// A new AudioPlayer instance.
+    pub fn new(input_path: &str) -> Result<Self, MyError> {
         let mut mpv_builder = mpv::MpvHandlerBuilder::new().expect("Failed to init MPV builder");
-        mpv_builder.try_hardware_decoding();
-        let mut mpv = mpv_builder.build().expect("Failed to build MPV handler");
+        let _ = mpv_builder.try_hardware_decoding();
+        let mut mpv = mpv_builder
+            .build()
+            .map_err(|err| MyError::Audio(format!("Failed to set no-video property: {:?}", err)))?;
         mpv.set_property("vid", "no")
-            .expect("Failed to set no-video property");
+            .map_err(|err| MyError::Audio(format!("Failed to set no-video property: {:?}", err)))?;
         mpv.command(&["loadfile", input_path])
-            .expect("Failed to load audio file");
+            .map_err(|err| MyError::Audio(format!("Failed to load audio file: {:?}", err)))?;
         mpv.set_property("pause", false)
-            .expect("Failed to set pause property");
-        Self { mpv }
+            .map_err(|err| MyError::Audio(format!("Failed to set pause property: {:?}", err)))?;
+        Ok(Self { mpv })
     }
 
-    pub fn pause(&mut self) {
+    /// Pauses the audio playback.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    pub fn pause(&mut self) -> Result<(), MyError> {
         self.mpv
             .set_property("pause", true)
-            .expect("Failed to pause");
+            .map_err(|err| MyError::Audio(format!("{:?}", err)))
     }
 
-    pub fn resume(&mut self) {
+    /// Resumes the audio playback.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    pub fn resume(&mut self) -> Result<(), MyError> {
         self.mpv
             .set_property("pause", false)
-            .expect("Failed to resume");
+            .map_err(|err| MyError::Audio(format!("{:?}", err)))
     }
 
-    pub fn toggle(&mut self) {
+    /// Toggles the playback state (play/pause) of the audio.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    pub fn toggle_play(&mut self) -> Result<(), MyError> {
         let paused = self
             .mpv
             .get_property::<bool>("pause")
-            .expect("Failed to get pause property");
+            .map_err(|err| MyError::Audio(format!("{:?}", err)))?;
+
         if paused {
-            self.resume();
+            self.resume()
         } else {
-            self.pause();
+            self.pause()
         }
     }
 
-    pub fn stop(&mut self) {
-        self.mpv.command(&["stop"]).expect("Failed to stop");
+    /// Mutes the audio playback.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    pub fn mute(&mut self) -> Result<(), MyError> {
+        self.mpv
+            .set_property("mute", true)
+            .map_err(|err| MyError::Audio(format!("{:?}", err)))
+    }
+
+    /// Unmutes the audio playback.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    pub fn unmute(&mut self) -> Result<(), MyError> {
+        self.mpv
+            .set_property("mute", false)
+            .map_err(|err| MyError::Audio(format!("{:?}", err)))
+    }
+
+    pub fn toggle_mute(&mut self) -> Result<(), MyError> {
+        let muted = self
+            .mpv
+            .get_property::<bool>("mute")
+            .map_err(|err| MyError::Audio(format!("{:?}", err)))?;
+        if muted {
+            self.unmute()
+        } else {
+            self.mute()
+        }
+    }
+
+    pub fn stop(&mut self) -> Result<(), MyError> {
+        self.mpv
+            .command(&["stop"])
+            .map_err(|err| MyError::Audio(format!("{:?}", err)))
     }
 }
-
-// pub fn demo(
-//     input_path: &str,
-//     barrier: std::sync::Arc<std::sync::Barrier>,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     // let audio_path = extract_audio(input_path)?;
-
-//     // play_audio_process(audio_path.to_str().unwrap())?;
-//     play_audio_process(input_path, barrier)?;
-//     Ok(())
-// }
-
-// pub fn play_audio_process(
-//     audio_path: &str,
-//     barrier: std::sync::Arc<std::sync::Barrier>,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     let mut mpv_builder = mpv::MpvHandlerBuilder::new().expect("Failed to init MPV builder");
-//     let mut mpv = mpv_builder.build().expect("Failed to build MPV handler");
-
-//     mpv.set_property("vid", "no")
-//         .expect("Failed to set no-video property");
-//     mpv.command(&["loadfile", audio_path])
-//         .expect("Failed to load audio file");
-//     mpv.set_property("pause", false)
-//         .expect("Failed to set pause property");
-
-//     barrier.wait();
-//     // Wait for the "end-file" event to know when the playback has finished
-//     loop {
-//         if let Some(event) = mpv.wait_event(0.1) {
-//             match event {
-//                 mpv::Event::EndFile(_) => break,
-//                 _ => {}
-//             }
-//         }
-//     }
-
-//     Ok(())
-// }
-
-// pub fn play_audio(audio_path: &str) -> Result<MpvHandler, Box<dyn std::error::Error>> {
-//     let mut mpv_builder = mpv::MpvHandlerBuilder::new().expect("Failed to init MPV builder");
-//     // mpv_builder.try_hardware_decoding();
-
-//     let mut mpv = mpv_builder.build().expect("Failed to build MPV handler");
-//     mpv.set_property("pause", true)
-//         .expect("Failed to set pause property");
-//     mpv.set_property("no-video", true)
-//         .expect("Failed to set no-video property");
-//     mpv.command(&["loadfile", audio_path])
-//         .expect("Failed to load audio file");
-
-//     Ok(mpv)
-// }
