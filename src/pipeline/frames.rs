@@ -4,10 +4,14 @@
 //! different media types such as images, videos, and animated GIFs. It also includes helper
 //! functions to open and process media files, as well as downloading and opening YouTube videos.
 use crate::{audio::utils::has_audio, common::errors::*, downloader::youtube};
+use either::Either;
 use gif;
 use image::{io::Reader as ImageReader, DynamicImage, ImageBuffer};
+use num::Rational64;
+use num::ToPrimitive;
 use opencv::{imgproc, prelude::*, videoio::VideoCapture};
 use serde_json::Value;
+use std::str::FromStr;
 use std::{
     fs::File,
     io,
@@ -211,7 +215,7 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
     })
 }
 
-fn extract_fps(video_path: &str) -> Result<f64, Box<dyn std::error::Error>> {
+fn extract_fps(video_path: &str) -> Option<f64> {
     let output = Command::new("ffprobe")
         .arg("-v")
         .arg("error")
@@ -224,28 +228,24 @@ fn extract_fps(video_path: &str) -> Result<f64, Box<dyn std::error::Error>> {
         .arg(video_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .output()?;
+        .output()
+        .expect("Failed to extract fps from video. Is ffprobe installed?");
 
-    let output_str = String::from_utf8(output.stdout)?;
-    let json_value: Value = serde_json::from_str(&output_str)?;
-    let r_frame_rate = json_value["streams"][0]["r_frame_rate"]
-        .as_str()
-        .ok_or("Failed to get r_frame_rate")?;
+    let output_str = String::from_utf8(output.stdout).unwrap_or("".to_string());
+    let json_value: Value = serde_json::from_str(&output_str).unwrap_or(Value::Null);
+    if json_value != Value::Null {
+        let r_frame_rate = json_value["streams"][0]["r_frame_rate"]
+            .as_str()
+            .ok_or("".to_string())
+            .unwrap_or("");
 
-    let (num, denom) = {
-        let mut iter = r_frame_rate.split('/');
-        (
-            iter.next()
-                .ok_or("Invalid r_frame_rate format")?
-                .parse::<f64>()?,
-            iter.next()
-                .ok_or("Invalid r_frame_rate format")?
-                .parse::<f64>()?,
-        )
-    };
+        let frame_rate_f = Rational64::from_str(r_frame_rate);
+        if frame_rate_f.is_ok() {
+            return Some(frame_rate_f.unwrap().to_f64().unwrap());
+        }
+    }
 
-    let fps = num / denom;
-    Ok(fps)
+    None
 }
 
 /// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
@@ -263,50 +263,39 @@ fn extract_fps(video_path: &str) -> Result<f64, Box<dyn std::error::Error>> {
 ///
 /// A `Result` containing a `FrameIterator` if the media file is successfully opened, or a `MyError`
 /// if an error occurs.
-pub fn open_media<P: AsRef<Path>>(
-    path: &P,
-) -> Result<(FrameIterator, Option<f64>, Option<TempPath>), MyError> {
-    let path = path.as_ref();
+pub fn open_media(
+    path: String,
+) -> Result<(FrameIterator, Option<f64>, Option<Either<TempPath, String>>), MyError> {
+    let p = Path::new(&path);
+    let x = Path::new(p).to_owned();
+    let path = x.as_path(); //.as_ref();
     let ext = path.extension().and_then(std::ffi::OsStr::to_str);
-    let mut fps = None;
-
-    if let Ok(fpsf) = extract_fps(path.as_os_str().to_str().unwrap_or("")) {
-        fps = Some(fpsf);
-    }
 
     // Check if the path is a URL and has a YouTube domain
     if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
         if let Some(domain) = url.domain() {
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
                 let video = youtube::download_video(path.to_str().unwrap_or(""))?;
-                // // let video_str = video.as_os_str().to_str().unwrap_or("");
-                // let audio = has_audio(video.as_os_str().to_str().unwrap())?;
-                // let audio_track = if audio {
-                //     let xx = video.as_os_str().to_str().unwrap().to_string();
-                //     Some(TempPath::from_path(xx.as_str()))
-                // } else {
-                //     None
-                // };
+                let fps = extract_fps(video.as_os_str().to_str().unwrap_or(""));
                 let video_open = open_video(&video)?;
-                return Ok((video_open, fps, Some(video)));
+                return Ok((video_open, fps, Some(Either::Left(video))));
             }
         }
     }
 
+    let fps = extract_fps(path.as_os_str().to_str().unwrap_or(""));
     let audio = has_audio(path.as_os_str().to_str().unwrap_or(""))?;
-    // let audio_track = if audio {
-    //     Some(TempPath::from_path(
-    //         path.as_os_str().to_str().unwrap_or("").to_string(),
-    //     ))
-    // } else {
-    //     None
-    // };
+    let audio_track = if audio {
+        Some(Either::Right(path.to_str().unwrap_or("").to_string()))
+    } else {
+        None
+    };
     match ext {
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
         | Some("jpeg") => Ok((open_image(path)?, None, None)),
         Some("mp4") | Some("avi") | Some("webm") | Some("mkv") | Some("mov") | Some("flv")
-        | Some("ogg") => Ok((open_video(path)?, fps, None)),
+        | Some("ogg") => Ok((open_video(path)?, fps, audio_track)),
         Some("gif") => Ok((open_gif(path)?, None, None)),
-        _ => Ok((open_video(path)?, fps, None)), // Unknown extension, try to open as video anyway
+        _ => Ok((open_video(path)?, fps, audio_track)), // Unknown extension, try to open as video anyway
     }
 }

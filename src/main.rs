@@ -17,12 +17,11 @@ mod msg;
 mod pipeline;
 mod terminal;
 
+use audio::runner::Control as AudioControl;
 use clap::Parser;
 use common::errors::*;
 use crossbeam_channel::{bounded, unbounded};
-use std::time::Duration;
-
-use audio::runner::Control as AudioControl;
+use either::Either;
 use msg::broker::Control as MediaControl;
 use pipeline::{
     char_maps::CHARS1,
@@ -30,7 +29,9 @@ use pipeline::{
     image_pipeline::ImagePipeline,
     runner::Control as PipelineControl,
 };
+use std::path::Path;
 use std::thread;
+use std::time::Duration;
 use terminal::Terminal;
 
 pub type StringInfo = (String, Vec<u8>);
@@ -69,8 +70,9 @@ fn main() -> Result<(), MyError> {
         .fps
         .parse::<f64>()
         .map_err(|err| MyError::Application(format!("{ERROR_DATA}:{err:?}")))?;
+    let title = args.input.clone();
 
-    let (media, fps, audio) = open_media(&args.input)?;
+    let (media, fps, audio) = open_media(title)?;
 
     let num_threads = if audio.is_some() { 4 } else { 3 };
     let mut handles = Vec::with_capacity(num_threads);
@@ -127,33 +129,29 @@ fn main() -> Result<(), MyError> {
     handles.push(handle_thread_pipeline);
 
     // Launch Audio Thread
-    let audio_barrier = std::sync::Arc::clone(&barrier);
-    // if audio.is_some() {
-    //     let x = &audio.unwrap();
-    //     file_path = x.to_str().unwrap_or("");
-    // } else {
-    //     file_path = &args.input.clone();
-    // }
-    let handle_thread_audio = thread::spawn(move || -> Result<(), MyError> {
-        let file_path;
-        let audio_track = audio.unwrap();
-        if audio_track.exists() {
-            file_path = audio_track.to_str().unwrap_or(&args.input);
+    let boxed_temp_file = Box::new(audio);
+    if boxed_temp_file.is_some() {
+        let audio_track = boxed_temp_file.as_ref().as_ref();
+        let title = args.input.clone();
+        let file_path = if let Some(Either::Left(audio_track)) = audio_track {
+            let x = audio_track.to_str().unwrap_or(&title);
+            String::from(x)
         } else {
-            file_path = &args.input;
-        }
-        let player = audio::player::AudioPlayer::new(&file_path)?;
-        let mut runner = audio::runner::Runner::new(player, rx_controls_audio, audio_barrier);
-        runner.run()
-    });
-    handles.push(handle_thread_audio);
+            title
+        };
+        let audio_barrier = std::sync::Arc::clone(&barrier);
+        let handle_thread_audio = thread::spawn(move || -> Result<(), MyError> {
+            let player = audio::player::AudioPlayer::new(&file_path)?;
+            let mut runner = audio::runner::Runner::new(player, rx_controls_audio, audio_barrier);
+            runner.run()
+        });
+        let _ = handle_thread_audio.join().unwrap();
+    }
 
     // Wait for threads to finish
     for handle in handles {
         let _ = handle.join(); //.expect("a thread panicked");
     }
-    // if audio.is_some() {
-    //     println!("lifetime shenanigan");
-    // }
+    // dbg!(boxed_temp_file);
     Ok(())
 }
