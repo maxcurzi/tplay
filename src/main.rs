@@ -145,7 +145,7 @@ fn main() -> Result<(), MyError> {
             let mut runner = audio::runner::Runner::new(player, rx_controls_audio, audio_barrier);
             runner.run()
         });
-        let _ = handle_thread_audio.join().unwrap();
+        handles.push(handle_thread_audio);
     }
 
     // Wait for threads to finish
