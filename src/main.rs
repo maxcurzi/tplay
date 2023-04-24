@@ -23,15 +23,12 @@ use common::errors::*;
 use crossbeam_channel::{bounded, unbounded};
 use either::Either;
 use msg::broker::Control as MediaControl;
+use pipeline::frames::FrameIterator;
 use pipeline::{
-    char_maps::CHARS1,
-    frames::{open_media, FrameIterator},
-    image_pipeline::ImagePipeline,
+    char_maps::CHARS1, frames::open_media, image_pipeline::ImagePipeline,
     runner::Control as PipelineControl,
 };
-use std::path::Path;
 use std::thread;
-use std::time::Duration;
 use terminal::Terminal;
 
 pub type StringInfo = (String, Vec<u8>);
@@ -59,29 +56,122 @@ struct Args {
 
 const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
 
-/// Main function for the application.
-///
-/// This function parses command line arguments, opens the media, initializes the
-/// pipeline and terminal threads, and then waits for them to finish.
+use std::sync::{Arc, Barrier};
+use std::thread::JoinHandle;
+
+struct MediaProcessor {
+    handles: Vec<JoinHandle<Result<(), MyError>>>,
+    barrier: Arc<Barrier>,
+}
+
+impl MediaProcessor {
+    pub fn new(n_threads: usize) -> Self {
+        MediaProcessor {
+            handles: Vec::with_capacity(n_threads),
+            barrier: Arc::new(Barrier::new(n_threads)),
+        }
+    }
+
+    pub fn launch_broker_thread(
+        &mut self,
+        rx_controls: crossbeam_channel::Receiver<MediaControl>,
+        tx_controls_pipeline: Option<crossbeam_channel::Sender<PipelineControl>>,
+        tx_controls_audio: Option<crossbeam_channel::Sender<AudioControl>>,
+    ) -> Result<(), MyError> {
+        let barrier = Arc::clone(&self.barrier);
+        let handle = thread::spawn(move || -> Result<(), MyError> {
+            let mut broker = msg::broker::MessageBroker::new(
+                rx_controls,
+                tx_controls_pipeline,
+                tx_controls_audio,
+            );
+            barrier.wait();
+            broker.run()
+        });
+        self.handles.push(handle);
+        Ok(())
+    }
+
+    pub fn launch_terminal_thread(
+        &mut self,
+        title: String,
+        gray: bool,
+        rx_frames: crossbeam_channel::Receiver<Option<StringInfo>>,
+        tx_controls: crossbeam_channel::Sender<MediaControl>,
+    ) -> Result<(), MyError> {
+        let barrier = Arc::clone(&self.barrier);
+        let handle = thread::spawn(move || -> Result<(), MyError> {
+            let mut term = Terminal::new(title, gray, rx_frames, tx_controls, barrier);
+            term.run()
+        });
+        self.handles.push(handle);
+        Ok(())
+    }
+
+    pub fn launch_pipeline_thread(
+        &mut self,
+        args: &Args,
+        media: FrameIterator,
+        fps: Option<f64>,
+        tx_frames: crossbeam_channel::Sender<Option<StringInfo>>,
+        rx_controls_pipeline: crossbeam_channel::Receiver<PipelineControl>,
+    ) -> Result<(), MyError> {
+        let barrier = Arc::clone(&self.barrier);
+        let args_fps = args
+            .fps
+            .parse::<f64>()
+            .map_err(|err| MyError::Application(format!("{ERROR_DATA}:{err:?}")))?;
+        let cmaps = args.char_map.chars().collect();
+        let wmod = args.w_mod; //.clone();
+        let handle = thread::spawn(move || -> Result<(), MyError> {
+            let mut runner = pipeline::runner::Runner::init(
+                ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps),
+                media,
+                fps.unwrap_or(args_fps),
+                tx_frames,
+                rx_controls_pipeline,
+                wmod,
+                barrier,
+            );
+            runner.run()
+        });
+        self.handles.push(handle);
+        Ok(())
+    }
+
+    pub fn launch_audio_thread(
+        &mut self,
+        file_path: String,
+        rx_controls_audio: crossbeam_channel::Receiver<AudioControl>,
+    ) -> Result<(), MyError> {
+        let barrier = Arc::clone(&self.barrier);
+        let handle = thread::spawn(move || -> Result<(), MyError> {
+            let player = audio::player::AudioPlayer::new(&file_path)?;
+            let mut runner = audio::runner::Runner::new(player, rx_controls_audio, barrier);
+            runner.run()
+        });
+        self.handles.push(handle);
+        Ok(())
+    }
+
+    pub fn join_threads(self) {
+        for handle in self.handles {
+            let _ = handle.join();
+        }
+    }
+}
+
 fn main() -> Result<(), MyError> {
     let args = Args::parse();
 
-    let args_fps = args
-        .fps
-        .parse::<f64>()
-        .map_err(|err| MyError::Application(format!("{ERROR_DATA}:{err:?}")))?;
     let title = args.input.clone();
 
     let (media, fps, audio) = open_media(title)?;
 
     let num_threads = if audio.is_some() { 4 } else { 3 };
-    let mut handles = Vec::with_capacity(num_threads);
-    let barrier = std::sync::Arc::new(std::sync::Barrier::new(num_threads));
 
-    // Set up a channel for passing frames and controls
     let (tx_frames, rx_frames) = bounded::<Option<StringInfo>>(1);
 
-    // From to broker
     let (tx_controls, rx_controls) = unbounded::<MediaControl>();
     let (tx_controls_pipeline, rx_controls_pipeline) = unbounded::<PipelineControl>();
     let (tx_controls_audio, rx_controls_audio) = unbounded::<AudioControl>();
@@ -93,65 +183,40 @@ fn main() -> Result<(), MyError> {
         None
     };
 
-    // Launch message broker
-    let broker_barrier = std::sync::Arc::clone(&barrier);
-    let handle_thread_broker = thread::spawn(move || -> Result<(), MyError> {
-        let mut broker =
-            msg::broker::MessageBroker::new(rx_controls, tx_controls_pipeline, tx_controls_audio);
-        broker_barrier.wait();
-        broker.run()
-    });
-    handles.push(handle_thread_broker);
+    let mut media_processor = MediaProcessor::new(num_threads);
+    let _ = media_processor.launch_broker_thread(
+        rx_controls,
+        tx_controls_pipeline,
+        tx_controls_audio,
+    )?;
 
-    // Launch Terminal Thread
-    let title = args.input.clone();
-    let term_barrier = std::sync::Arc::clone(&barrier);
-    let handle_thread_terminal = thread::spawn(move || -> Result<(), MyError> {
-        let mut term = Terminal::new(title, args.gray, rx_frames, tx_controls, term_barrier);
-        term.run()
-    });
-    handles.push(handle_thread_terminal);
+    let _ = media_processor.launch_terminal_thread(
+        args.input.clone(),
+        args.gray,
+        rx_frames,
+        tx_controls,
+    )?;
 
-    // Launch Image Pipeline Thread
-    let pipeline_barrier = std::sync::Arc::clone(&barrier);
-    let handle_thread_pipeline = thread::spawn(move || -> Result<(), MyError> {
-        let mut runner = pipeline::runner::Runner::init(
-            ImagePipeline::new(DEFAULT_TERMINAL_SIZE, args.char_map.chars().collect()),
-            media,
-            fps.unwrap_or(args_fps),
-            tx_frames,
-            rx_controls_pipeline,
-            args.w_mod,
-            pipeline_barrier,
-        );
-        runner.run()
-    });
-    handles.push(handle_thread_pipeline);
+    let _ = media_processor.launch_pipeline_thread(
+        &args,
+        media,
+        fps,
+        tx_frames,
+        rx_controls_pipeline,
+    )?;
 
-    // Launch Audio Thread
-    let boxed_temp_file = Box::new(audio);
-    if boxed_temp_file.is_some() {
-        let audio_track = boxed_temp_file.as_ref().as_ref();
+    if let Some(audio) = audio {
         let title = args.input.clone();
-        let file_path = if let Some(Either::Left(audio_track)) = audio_track {
+        let file_path = if let Either::Left(audio_track) = audio.as_ref() {
             let x = audio_track.to_str().unwrap_or(&title);
             String::from(x)
         } else {
             title
         };
-        let audio_barrier = std::sync::Arc::clone(&barrier);
-        let handle_thread_audio = thread::spawn(move || -> Result<(), MyError> {
-            let player = audio::player::AudioPlayer::new(&file_path)?;
-            let mut runner = audio::runner::Runner::new(player, rx_controls_audio, audio_barrier);
-            runner.run()
-        });
-        handles.push(handle_thread_audio);
+        let _ = media_processor.launch_audio_thread(file_path, rx_controls_audio)?;
     }
 
-    // Wait for threads to finish
-    for handle in handles {
-        let _ = handle.join(); //.expect("a thread panicked");
-    }
-    // dbg!(boxed_temp_file);
+    media_processor.join_threads();
+
     Ok(())
 }

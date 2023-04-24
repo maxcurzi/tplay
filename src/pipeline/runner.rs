@@ -119,8 +119,7 @@ impl Runner {
     }
 
     /// Determines if it's time to send the next frame based on the current time and the target
-    /// frame rate. Updates the time_count accordingly and sleeps for a short duration if it's not
-    /// time to send the next frame.
+    /// frame rate. Updates the time_count accordingly if it's time to send the next frame.
     ///
     /// # Arguments
     ///
@@ -130,19 +129,16 @@ impl Runner {
     ///
     /// A boolean indicating whether it's time to send the next frame.
     fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> bool {
-        if std::time::Instant::now()
-            .duration_since(*time_count)
-            .as_micros()
-            < (1_000_000_000_u128 / ((self.fps * 1000.0) as u128)) as u128
-        {
-            return false;
+        let target_frame_duration =
+            Duration::from_nanos((1_000_000_000_u64 / self.fps as u64) as u64);
+        let elapsed_time = time_count.elapsed();
+
+        if elapsed_time >= target_frame_duration {
+            *time_count += target_frame_duration;
+            true
+        } else {
+            false
         }
-        *time_count += Duration::from_micros(
-            ((1_000_000_000_u128 / ((self.fps * 1000.0) as u128)) as u128)
-                .try_into()
-                .unwrap_or(0),
-        );
-        true
     }
 
     /// Processes the given frame using the image pipeline and converts the processed image to an

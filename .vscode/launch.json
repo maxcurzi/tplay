@@ -40,7 +40,7 @@
                 }
             },
             "args": [
-                "assets/eva.webm",
+                "assets/yt.webm",
             ],
             "cwd": "${workspaceFolder}"
         },
