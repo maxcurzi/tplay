@@ -65,7 +65,9 @@ These instructions will get you a copy of the project up and running on your loc
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
+
 [OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv), [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0), [MPV](https://mpv.io/installation/), [ffmpeg](https://ffmpeg.org/download.html)
+
  Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
 # Prerequisites Installation on Linux
