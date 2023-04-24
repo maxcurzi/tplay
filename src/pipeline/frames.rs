@@ -68,6 +68,29 @@ impl Iterator for FrameIterator {
         }
     }
 }
+impl FrameIterator {
+    pub fn skip_frames(&mut self, n: usize) {
+        match self {
+            FrameIterator::Image(_) => {
+                // For a single image, skipping is a no-op, since there's only one frame
+            }
+            FrameIterator::Video(ref mut video) => {
+                for _ in 0..n {
+                    let mut frame = Mat::default();
+                    if !video.read(&mut frame).unwrap_or(false) || frame.empty() {
+                        break;
+                    }
+                }
+            }
+            FrameIterator::AnimatedGif {
+                ref mut current_frame,
+                frames,
+            } => {
+                *current_frame = (*current_frame + n) % frames.len();
+            }
+        }
+    }
+}
 
 /// Converts an opencv Mat frame to a dynamic image.
 ///

@@ -47,6 +47,26 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'tplay' camera",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=tplay",
+                    "--package=tplay"
+                ],
+                "filter": {
+                    "name": "tplay",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "/dev/video0",
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'tplay'",
             "cargo": {
                 "args": [

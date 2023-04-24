@@ -48,6 +48,8 @@ pub struct Runner {
     last_frame: Option<DynamicImage>,
     /// Barrier
     barrier: std::sync::Arc<std::sync::Barrier>,
+    /// Allow frame skipping
+    allow_frame_skip: bool,
 }
 
 /// Enum representing the different control commands that can be sent to the Runner.
@@ -90,6 +92,7 @@ impl Runner {
         rx_controls: Receiver<Control>,
         w_mod: u32,
         barrier: std::sync::Arc<std::sync::Barrier>,
+        allow_frame_skip: bool,
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_map.clone(),
@@ -115,6 +118,7 @@ impl Runner {
             char_maps,
             last_frame: None,
             barrier,
+            allow_frame_skip,
         }
     }
 
@@ -128,18 +132,18 @@ impl Runner {
     /// # Returns
     ///
     /// A boolean indicating whether it's time to send the next frame.
-    fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> bool {
-        let target_frame_duration =
-            Duration::from_nanos((1_000_000_000_u64 / self.fps as u64) as u64);
-        let elapsed_time = time_count.elapsed();
+    // fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> bool {
+    //     let target_frame_duration =
+    //         Duration::from_nanos((1_000_000_000_u64 / self.fps as u64) as u64);
+    //     let elapsed_time = time_count.elapsed();
 
-        if elapsed_time >= target_frame_duration {
-            *time_count += target_frame_duration;
-            true
-        } else {
-            false
-        }
-    }
+    //     if elapsed_time >= target_frame_duration {
+    //         *time_count += target_frame_duration;
+    //         true
+    //     } else {
+    //         false
+    //     }
+    // }
 
     /// Processes the given frame using the image pipeline and converts the processed image to an
     /// ASCII string representation.
@@ -167,7 +171,11 @@ impl Runner {
         while self.state != State::Stopped {
             let frame_needs_refresh = self.process_control_commands();
 
-            if self.should_process_frame(&mut time_count) {
+            let (should_process_frame, frames_to_skip) = self.should_process_frame(&mut time_count);
+            if should_process_frame {
+                if frames_to_skip > 0 && self.allow_frame_skip {
+                    self.media.skip_frames(frames_to_skip);
+                }
                 let frame = self.get_current_frame();
 
                 // Check if terminal is ready for the next frame
@@ -248,20 +256,44 @@ impl Runner {
             self.char_maps[(char_map % self.char_maps.len() as u32) as usize].clone();
     }
 
-    /// Determines if a frame should be processed based on the current time and the Runner's state.
-    ///
-    /// # Arguments
-    ///
-    /// * `time_count` - A mutable reference to the time counter used for frame rate control.
-    ///
-    /// # Returns
-    ///
-    /// A boolean indicating whether a frame should be processed.
-    fn should_process_frame(&self, time_count: &mut std::time::Instant) -> bool {
-        self.time_to_send_next_frame(time_count)
-            && (self.state == State::Running || self.state == State::Paused)
+    // /// Determines if a frame should be processed based on the current time and the Runner's state.
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `time_count` - A mutable reference to the time counter used for frame rate control.
+    // ///
+    // /// # Returns
+    // ///
+    // /// A boolean indicating whether a frame should be processed.
+    // fn should_process_frame(&self, time_count: &mut std::time::Instant) -> bool {
+    //     self.time_to_send_next_frame(time_count)
+    //         && (self.state == State::Running || self.state == State::Paused)
+    // }
+    fn should_process_frame(&self, time_count: &mut std::time::Instant) -> (bool, usize) {
+        let (time_to_send_next_frame, frames_to_skip) = self.time_to_send_next_frame(time_count);
+
+        if time_to_send_next_frame && (self.state == State::Running || self.state == State::Paused)
+        {
+            (true, frames_to_skip)
+        } else {
+            (false, 0)
+        }
     }
 
+    fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> (bool, usize) {
+        let target_frame_duration =
+            Duration::from_nanos((1_000_000_000_u64 / self.fps as u64) as u64);
+        let elapsed_time = time_count.elapsed();
+
+        if elapsed_time >= target_frame_duration {
+            let frames_to_skip =
+                (elapsed_time.as_nanos() / target_frame_duration.as_nanos()) as usize - 1;
+            *time_count += target_frame_duration * (frames_to_skip as u32 + 1);
+            (true, frames_to_skip)
+        } else {
+            (false, 0)
+        }
+    }
     /// Retrieves the current frame based on the Runner's state.
     ///
     /// # Returns

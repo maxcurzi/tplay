@@ -40,9 +40,9 @@ struct Args {
     /// Name of the file/stream to process
     #[arg(required = true, index = 1)]
     input: String,
-    /// Maximum fps
-    #[arg(short, long, default_value = "60.0")]
-    fps: String,
+    /// Force a user-specified FPS
+    #[arg(short, long)]
+    fps: Option<String>,
     /// Custom lookup char table
     #[arg(short, long, default_value = CHARS1)]
     char_map: String,
@@ -52,9 +52,13 @@ struct Args {
     /// Experimental width modifier (emojis have 2x width)
     #[arg(short, long, default_value = "1")]
     w_mod: u32,
+    /// Experimental frame skip flag
+    #[arg(short, long, default_value = "false")]
+    allow_frame_skip: bool,
 }
 
 const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
+const DEFAULT_FPS: f64 = 30.0;
 
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
@@ -117,21 +121,28 @@ impl MediaProcessor {
         rx_controls_pipeline: crossbeam_channel::Receiver<PipelineControl>,
     ) -> Result<(), MyError> {
         let barrier = Arc::clone(&self.barrier);
-        let args_fps = args
-            .fps
-            .parse::<f64>()
-            .map_err(|err| MyError::Application(format!("{ERROR_DATA}:{err:?}")))?;
+        let mut use_fps = DEFAULT_FPS;
+        if let Some(fps) = fps {
+            use_fps = fps;
+        }
+        if let Some(fps) = &args.fps {
+            use_fps = fps
+                .parse::<f64>()
+                .map_err(|err| MyError::Application(format!("{ERROR_DATA}:{err:?}")))?;
+        }
         let cmaps = args.char_map.chars().collect();
-        let wmod = args.w_mod; //.clone();
+        let w_mod = args.w_mod;
+        let allow_frame_skip = args.allow_frame_skip;
         let handle = thread::spawn(move || -> Result<(), MyError> {
             let mut runner = pipeline::runner::Runner::init(
                 ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps),
                 media,
-                fps.unwrap_or(args_fps),
+                use_fps,
                 tx_frames,
                 rx_controls_pipeline,
-                wmod,
+                w_mod,
                 barrier,
+                allow_frame_skip,
             );
             runner.run()
         });
