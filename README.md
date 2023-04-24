@@ -21,8 +21,8 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
     - [Linux](#prerequisites-installation-on-linux)
     - [Windows](#prerequisites-installation-on-windows)
   - [Installation](#installation)
-    - [For developers](#for-developers)
     - [For users](#for-users)
+    - [For developers](#for-developers)
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
@@ -70,15 +70,19 @@ The following dependencies are also required:
 
  Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
-# Prerequisites Installation on Linux
-If you're on Linux, you can install OpenCV (and the required Clang) with your package manager. For example, on Ubuntu:
+## Prerequisites Installation on Linux
+If you're on Linux, you can install all dependencies with your package manager. For example, on Ubuntu:
 
 ```bash
 sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev
 ```
 
 ## Prerequisites installation on Windows
-If you have troubles installing OpenCV in Windows (I know I have) try this (assuming you have a relatively modern computer with a Windows 64bit installation):
+**Installing all prerequisited on Windows is NOT RECOMMENDED as it's a lengthy process prone to errors. I leave a partial description that should work up until crate version 0.2.1**
+
+**If you are on Windows, use WSL (Windows Subsystem for Linux) and follow the [Linux instructions](#prerequisites-installation-on-linux)**
+
+-- Old instructions for Windows (up until crate version 0.2.1) -- 
 - Download OpenCV prebuilt binaries (I used this [one](https://sourceforge.net/projects/opencvlibrary/)) and it was 4.6.0 at the time of writing.
 - Open the package and extract the `opencv` folder to `C:\opencv` or any other location you prefer.
 - Set the following environment variables (update the paths if you extracted the package to a different location):
@@ -89,19 +93,23 @@ If you have troubles installing OpenCV in Windows (I know I have) try this (assu
 
 - Install [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) from binary, you'll likely want to use the 64-bit version on a modern computer.
   - Add this to your PATH variable (or whatever corresponding directory you have on your computer): `C:\Program Files\LLVM\bin`
-- Install [MPV](https://mpv.io/installation/) from binary, you'll likely want to use the 64-bit version on a modern computer.
 - Install [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation) from binary, you'll likely want to use the 64-bit version on a modern computer.
   - Add this to your PATH variable (or whatever corresponding directory you have on your computer): `C:\Program Files\yt-dlp\bin`
 
-# Development:
-You may need to install the following packages on some Linux distributions:
-`libssl-dev` (to run tests)
-`libopencv-dev`
-`libstdc++-12-dev`
-`gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly`
- `clang libclang-dev`
-
 # Installation
+
+## For users
+You can install the `tplay` command line tool by running the following command:
+
+```bash
+# Install the tplay command line tool
+cargo install tplay
+```
+So that you can run it from anywhere as
+```bash
+tplay <media> [options]
+```
+
 ## For developers
 
 ```bash
@@ -121,17 +129,6 @@ cargo test
 cargo run --release -- <media> [options]
 ```
 
-## For users
-You can install the `tplay` command line tool by running the following command:
-
-```bash
-# Install the tplay command line tool
-cargo install tplay
-```
-So that you can run it from anywhere as
-```bash
-tplay <media> [options]
-```
 # Usage
 `tplay <media> [options]`
 
@@ -143,11 +140,11 @@ tplay <media> [options]
 | `-g`, `--gray` | Start in grayscale mode |
 | `-w`, `--w-mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
 | `-a`, `--allow-frame-skip` | Experimental frame skip flag. Try to use if the playback is too slow. |
-|
 
+Substitute `tplay` with `cargo run --release --` if you plan to run from source.
 
 ```bash
-# Run it (use `cargo run --release --` if you didn't install it as tplay)
+# Run it
 tplay <media> [options]
 
 # Example: local image
@@ -195,9 +192,10 @@ https://github.com/search?q=ascii+player&type=repositories
 # Contributing
 Contributions are welcome! Please open an issue or submit a pull request.
 Ideally I'd like to implement the following features:
-- Investigate migration from OpenCV to ffmpeg
-- More media controls (jump forward, jump backward, loop, etc.)
-- Testing and feedback on installing and running it on MacOS
+- Reduce external dependencies and streamline installation process.
+- Investigate migration from OpenCV to ffmpeg.
+- More media controls (jump forward, jump backward, loop, etc.).
+- Testing and feedback on installing and running it on MacOS.
 - Let me know if you have any other ideas!
 
 # License
