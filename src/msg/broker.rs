@@ -32,7 +32,12 @@ pub enum Control {
 
 type BrokerControl = Control;
 
-/// Read from terminal and send to pipeline and audio
+/// The `MessageBroker` struct handles the communication between the terminal, pipeline and audio
+/// threads.
+///
+/// It receives commands from the terminal and forwards them to the pipeline and audio threads,
+/// and receives commands from the pipeline and audio threads and forwards them to the terminal
+/// thread.
 pub struct MessageBroker {
     rx_channel_terminal: Receiver<BrokerControl>,
     tx_channel_pipeline: Option<Sender<PipelineControl>>,

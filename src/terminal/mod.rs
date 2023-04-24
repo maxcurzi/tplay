@@ -75,6 +75,47 @@ impl Terminal {
         }
     }
 
+    /// The main loop of the Terminal that runs the animation, handles user input,
+    /// and manages the playback state.
+    ///
+    /// # Arguments
+    ///
+    /// * `barrier` - A reference to the `Barrier` used to synchronize the start of the animation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with the terminal operations or
+    /// communication with the pipeline.
+    pub fn run(&mut self, barrier: std::sync::Arc<std::sync::Barrier>) -> Result<(), MyError> {
+        execute!(stdout(), EnterAlternateScreen, SetTitle(&self.title))?;
+        terminal::enable_raw_mode()?;
+
+        // Clear screen
+        self.clear()?;
+
+        // Initialize terminal size and pass terminal size to pipeline
+        let (width, height) = terminal::size()?;
+        self.send_control(MediaControl::Resize(width, height))?;
+
+        barrier.wait();
+        // Begin drawing and event loop
+        while self.state != State::Stopped {
+            // Poll and handle events
+            if event::poll(Duration::from_millis(0))? {
+                let ev = event::read()?;
+                self.handle_event(ev)?;
+            }
+
+            // Wait for next frame to draw
+            if let Ok(Some(s)) = self.rx_buffer.try_recv() {
+                self.draw(&s)?;
+            };
+        }
+
+        self.cleanup()?;
+        Ok(())
+    }
+
     /// Clears the terminal screen and sets the initial terminal state.
     ///
     /// # Errors
@@ -248,46 +289,5 @@ impl Terminal {
         self.tx_control
             .send(control)
             .map_err(|e| MyError::Terminal(format!("{error}: {e:?}", error = ERROR_CHANNEL, e = e)))
-    }
-
-    /// The main loop of the Terminal that runs the animation, handles user input,
-    /// and manages the playback state.
-    ///
-    /// # Arguments
-    ///
-    /// * `barrier` - A reference to the `Barrier` used to synchronize the start of the animation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if there is an issue with the terminal operations or
-    /// communication with the pipeline.
-    pub fn run(&mut self, barrier: std::sync::Arc<std::sync::Barrier>) -> Result<(), MyError> {
-        execute!(stdout(), EnterAlternateScreen, SetTitle(&self.title))?;
-        terminal::enable_raw_mode()?;
-
-        // Clear screen
-        self.clear()?;
-
-        // Initialize terminal size and pass terminal size to pipeline
-        let (width, height) = terminal::size()?;
-        self.send_control(MediaControl::Resize(width, height))?;
-
-        barrier.wait();
-        // Begin drawing and event loop
-        while self.state != State::Stopped {
-            // Poll and handle events
-            if event::poll(Duration::from_millis(0))? {
-                let ev = event::read()?;
-                self.handle_event(ev)?;
-            }
-
-            // Wait for next frame to draw
-            if let Ok(Some(s)) = self.rx_buffer.try_recv() {
-                self.draw(&s)?;
-            };
-        }
-
-        self.cleanup()?;
-        Ok(())
     }
 }

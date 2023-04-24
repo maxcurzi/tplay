@@ -3,19 +3,16 @@
 //! This module contains the `FrameIterator` enum and its associated functions for handling
 //! different media types such as images, videos, and animated GIFs. It also includes helper
 //! functions to open and process media files, as well as downloading and opening YouTube videos.
-use crate::{audio::utils::has_audio, common::errors::*, downloader::youtube};
+use crate::{
+    audio::utils::has_audio,
+    common::{errors::*, utils::*},
+    downloader::youtube,
+};
 use either::Either;
 use gif;
-use image::{io::Reader as ImageReader, DynamicImage, ImageBuffer};
-use num::{Rational64, ToPrimitive};
-use opencv::{imgproc, prelude::*, videoio::VideoCapture};
-use serde_json::Value;
-use std::{
-    fs::File,
-    path::Path,
-    process::{Command, Stdio},
-    str::FromStr,
-};
+use image::{io::Reader as ImageReader, DynamicImage};
+use opencv::{prelude::*, videoio::VideoCapture};
+use std::{fs::File, path::Path};
 use tempfile::TempPath;
 use url::Url;
 
@@ -114,41 +111,81 @@ impl FrameIterator {
     }
 }
 
-/// Converts an opencv Mat frame to a dynamic image.
+/// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
 ///
-/// This helper function takes a reference to a video frame in BGR format and returns an optional
-/// `DynamicImage`.
+/// This function takes a path to a media file and identifies its type based on the file extension.
+/// It supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG), videos (MP4, AVI, WEBM, MKV, MOV, FLV,
+/// OGG), and animated GIFs. If the provided path is a URL pointing to a YouTube video, the video
+/// will be downloaded and opened.
 ///
 /// # Arguments
 ///
-/// * `mat` - A reference to a `Mat` object containing the video frame.
+/// * `path` - A reference to a path or a URL of the media file.
 ///
 /// # Returns
 ///
-/// An `Option` containing a `DynamicImage` if the frame is successfully converted, or
-/// `None` if an error occurs.
-fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
-    let mut rgb_mat = Mat::default();
-    if imgproc::cvt_color(&mat, &mut rgb_mat, imgproc::COLOR_BGR2RGB, 0).is_ok() {
-        if let Ok(_elem_size) = rgb_mat.elem_size() {
-            if let Ok(size) = rgb_mat.size() {
-                let reshaped_mat = rgb_mat.reshape(1, size.width * size.height).ok()?;
-                let data_vec: Vec<u8> = reshaped_mat
-                    .data_typed::<u8>()
-                    .expect("Unexpected invalid data")
-                    .to_vec();
+/// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
+/// `MyError` if an error occurs.
+pub fn open_media(path: String) -> Result<MediaData, MyError> {
+    let p = Path::new(&path);
+    let x = Path::new(p).to_owned();
+    let path = x.as_path(); //.as_ref();
+    let ext = path.extension().and_then(std::ffi::OsStr::to_str);
 
-                if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
-                    size.width as u32,
-                    size.height as u32,
-                    data_vec,
-                ) {
-                    return Some(DynamicImage::ImageRgb8(img_buf));
-                }
+    // Check if the path is a URL and has a YouTube domain
+    if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
+        if let Some(domain) = url.domain() {
+            if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
+                let video = youtube::download_video(path.to_str().unwrap_or(""))?;
+                let fps = extract_fps(video.as_os_str().to_str().unwrap_or(""));
+                let video_open = open_video(&video)?;
+                return Ok(MediaData {
+                    frame_iter: video_open,
+                    fps,
+                    audio_path: Some(Either::Left(video)),
+                });
             }
         }
     }
-    None
+
+    let fps = extract_fps(path.as_os_str().to_str().unwrap_or(""));
+    let audio = has_audio(path.as_os_str().to_str().unwrap_or(""))?;
+    let audio_track = if audio {
+        Some(Either::Right(path.to_str().unwrap_or("").to_string()))
+    } else {
+        None
+    };
+    match ext {
+        // Image extensions
+        Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
+        | Some("jpeg") => Ok(MediaData {
+            frame_iter: open_image(path)?,
+            fps: None,
+            audio_path: None,
+        }),
+
+        // Video extensions
+        Some("mp4") | Some("avi") | Some("webm") | Some("mkv") | Some("mov") | Some("flv")
+        | Some("ogg") => Ok(MediaData {
+            frame_iter: open_video(path)?,
+            fps,
+            audio_path: audio_track,
+        }),
+
+        // Gif
+        Some("gif") => Ok(MediaData {
+            frame_iter: open_gif(path)?,
+            fps: None,
+            audio_path: None,
+        }),
+
+        // Unknown extension, try open as video
+        _ => Ok(MediaData {
+            frame_iter: open_video(path)?,
+            fps,
+            audio_path: audio_track,
+        }),
+    }
 }
 
 /// Captures the next video frame as a dynamic image.
@@ -257,124 +294,4 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
         frames,
         current_frame: 0,
     })
-}
-
-/// Extracts the frame rate from a video file using `ffprobe`.
-///
-/// # Arguments
-///
-/// * `video_path` - A reference to the path of the video file.
-///
-/// # Returns
-///
-/// An `Option` containing the frame rate if the frame rate is successfully
-/// extracted, or `None` if an error occurs.
-fn extract_fps(video_path: &str) -> Option<f64> {
-    let output = Command::new("ffprobe")
-        .arg("-v")
-        .arg("error")
-        .arg("-select_streams")
-        .arg("v:0")
-        .arg("-show_entries")
-        .arg("stream=r_frame_rate")
-        .arg("-of")
-        .arg("json")
-        .arg(video_path)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .expect("Failed to extract fps from video. Is ffprobe installed?");
-
-    let output_str = String::from_utf8(output.stdout).unwrap_or("".to_string());
-    let json_value: Value = serde_json::from_str(&output_str).unwrap_or(Value::Null);
-    if json_value != Value::Null {
-        let r_frame_rate = json_value["streams"][0]["r_frame_rate"]
-            .as_str()
-            .ok_or("".to_string())
-            .unwrap_or("");
-
-        let frame_rate_f = Rational64::from_str(r_frame_rate);
-        if let Ok(frame_rate) = frame_rate_f {
-            return Some(frame_rate.to_f64().expect("Failed to parse FPS value"));
-        }
-    }
-
-    None
-}
-
-/// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
-///
-/// This function takes a path to a media file and identifies its type based on the file extension.
-/// It supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG), videos (MP4, AVI, WEBM, MKV, MOV, FLV,
-/// OGG), and animated GIFs. If the provided path is a URL pointing to a YouTube video, the video
-/// will be downloaded and opened.
-///
-/// # Arguments
-///
-/// * `path` - A reference to a path or a URL of the media file.
-///
-/// # Returns
-///
-/// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
-/// `MyError` if an error occurs.
-pub fn open_media(path: String) -> Result<MediaData, MyError> {
-    let p = Path::new(&path);
-    let x = Path::new(p).to_owned();
-    let path = x.as_path(); //.as_ref();
-    let ext = path.extension().and_then(std::ffi::OsStr::to_str);
-
-    // Check if the path is a URL and has a YouTube domain
-    if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
-        if let Some(domain) = url.domain() {
-            if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
-                let video = youtube::download_video(path.to_str().unwrap_or(""))?;
-                let fps = extract_fps(video.as_os_str().to_str().unwrap_or(""));
-                let video_open = open_video(&video)?;
-                return Ok(MediaData {
-                    frame_iter: video_open,
-                    fps,
-                    audio_path: Some(Either::Left(video)),
-                });
-            }
-        }
-    }
-
-    let fps = extract_fps(path.as_os_str().to_str().unwrap_or(""));
-    let audio = has_audio(path.as_os_str().to_str().unwrap_or(""))?;
-    let audio_track = if audio {
-        Some(Either::Right(path.to_str().unwrap_or("").to_string()))
-    } else {
-        None
-    };
-    match ext {
-        // Image extensions
-        Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
-        | Some("jpeg") => Ok(MediaData {
-            frame_iter: open_image(path)?,
-            fps: None,
-            audio_path: None,
-        }),
-
-        // Video extensions
-        Some("mp4") | Some("avi") | Some("webm") | Some("mkv") | Some("mov") | Some("flv")
-        | Some("ogg") => Ok(MediaData {
-            frame_iter: open_video(path)?,
-            fps,
-            audio_path: audio_track,
-        }),
-
-        // Gif
-        Some("gif") => Ok(MediaData {
-            frame_iter: open_gif(path)?,
-            fps: None,
-            audio_path: None,
-        }),
-
-        // Unknown extension, try open as video
-        _ => Ok(MediaData {
-            frame_iter: open_video(path)?,
-            fps,
-            audio_path: audio_track,
-        }),
-    }
 }

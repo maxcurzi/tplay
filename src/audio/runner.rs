@@ -35,7 +35,7 @@ pub struct Runner {
 pub enum Control {
     /// Command to toggle between pause and continue playback.
     PauseContinue,
-    ///
+    /// Command to toggle between mute and unmute.
     MuteUnmute,
     /// Command to stop the playback and exit the Runner.
     Exit,

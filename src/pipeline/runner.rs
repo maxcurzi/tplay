@@ -109,24 +109,6 @@ impl Runner {
         }
     }
 
-    /// Processes the given frame using the image pipeline and converts the processed image to an
-    /// ASCII string representation.
-    ///
-    /// # Arguments
-    ///
-    /// * `frame` - A reference to the DynamicImage to be processed.
-    ///
-    /// # Returns
-    ///
-    /// A Result containing a tuple of the ASCII string representation of the processed image and
-    /// the RGB data of the processed image.
-    fn process_frame(&mut self, frame: &DynamicImage) -> Result<StringInfo, MyError> {
-        let procimage = self.pipeline.resize(frame)?;
-        let grayimage = procimage.clone().into_luma8();
-        let rgb_info = procimage.into_rgb8().to_vec();
-        Ok((self.pipeline.to_ascii(&grayimage), rgb_info))
-    }
-
     /// The main function responsible for running the animation.
     ///
     /// It processes control commands, updates the state of the Runner, processes frames, and sends
@@ -169,6 +151,24 @@ impl Runner {
             }
         }
         Ok(())
+    }
+
+    /// Processes the given frame using the image pipeline and converts the processed image to an
+    /// ASCII string representation.
+    ///
+    /// # Arguments
+    ///
+    /// * `frame` - A reference to the DynamicImage to be processed.
+    ///
+    /// # Returns
+    ///
+    /// A Result containing a tuple of the ASCII string representation of the processed image and
+    /// the RGB data of the processed image.
+    fn process_frame(&mut self, frame: &DynamicImage) -> Result<StringInfo, MyError> {
+        let procimage = self.pipeline.resize(frame)?;
+        let grayimage = procimage.clone().into_luma8();
+        let rgb_info = procimage.into_rgb8().to_vec();
+        Ok((self.pipeline.to_ascii(&grayimage), rgb_info))
     }
 
     /// Processes control commands from the commands buffer and updates the Runner state and
