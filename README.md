@@ -155,22 +155,22 @@ tplay ./image.png
 tplay ./image.gif
 
 # Example: local video
-tplay ./video.mp4 --fps 60
+tplay ./video.mp4
 
 # Example: remote video (YouTube)
-tplay https://www.youtube.com/watch?v=dQw4w9WgXcQ --fps 30
+tplay https://www.youtube.com/watch?v=dQw4w9WgXcQ
 
 # Example: remote video (Other)
-tplay http://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4 --fps 30
+tplay http://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4
 
-# Example: YouTube video - 30fps, with different char maps
-tplay https://www.youtube.com/watch?v=fShlVhCfHig --fps 30 --char-map " ░▒▓█"
+# Example: YouTube video, with different char maps
+tplay https://www.youtube.com/watch?v=fShlVhCfHig --char-map " ░▒▓█"
 
-# Example: YouTube video - 30fps, with different char maps (use w-mod to adjust width when using emoji-based char maps)
-tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --fps 30 --char-map "🍎🍏❤️😊" --w-mod 2
+# Example: YouTube video, with different char maps (use w-mod to adjust width when using emoji-based char maps)
+tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --char-map "🍎🍏❤️😊" --w-mod 2
 
 # Example: webcam on Linux (YMMV on other OSes)
-tplay /dev/video0 --fps 30
+tplay /dev/video0
 ```
 
 # Playback commands
