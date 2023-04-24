@@ -1,15 +1,10 @@
-//! The audio::player module contains the AudioPlayer struct and related functionality for
-//! controlling and playing audio files.
-//!
-//! The AudioPlayer struct is responsible for handling audio playback, including play, pause,
-//! mute, unmute, and stop commands.
 use crate::common::errors::MyError;
-use mpv::MpvHandler;
+use libmpv::Mpv;
 
-/// The AudioPlayer struct handles audio playback using the mpv backend.
+/// The AudioPlayer struct handles audio playback using the libmpv backend.
 pub struct AudioPlayer {
-    /// The mpv handler responsible for managing the audio playback.
-    mpv: MpvHandler,
+    /// The mpv instance responsible for managing the audio playback.
+    mpv: Mpv,
 }
 
 impl AudioPlayer {
@@ -23,17 +18,25 @@ impl AudioPlayer {
     ///
     /// A new AudioPlayer instance.
     pub fn new(input_path: &str) -> Result<Self, MyError> {
-        let mut mpv_builder = mpv::MpvHandlerBuilder::new().expect("Failed to init MPV builder");
-        let _ = mpv_builder.try_hardware_decoding();
-        let mut mpv = mpv_builder
-            .build()
-            .map_err(|err| MyError::Audio(format!("Failed to set no-video property: {:?}", err)))?;
+        let mpv = Mpv::new().expect("Failed to init MPV builder");
+
         mpv.set_property("vid", "no")
             .map_err(|err| MyError::Audio(format!("Failed to set no-video property: {:?}", err)))?;
-        mpv.command(&["loadfile", input_path])
+        mpv.set_property("audio-display", "no").map_err(|err| {
+            MyError::Audio(format!(
+                "Failed to set no-audio-display property: {:?}",
+                err
+            ))
+        })?;
+        // mpv.set_property("audio-file-auto", "load").map_err(|err| {
+        //     MyError::Audio(format!("Failed to set audio-file-auto property: {:?}", err))
+        // })?;
+
+        mpv.command("loadfile", &[input_path])
             .map_err(|err| MyError::Audio(format!("Failed to load audio file: {:?}", err)))?;
-        mpv.set_property("pause", false)
+        mpv.set_property("pause", true)
             .map_err(|err| MyError::Audio(format!("Failed to set pause property: {:?}", err)))?;
+
         Ok(Self { mpv })
     }
 
@@ -67,7 +70,7 @@ impl AudioPlayer {
     pub fn toggle_play(&mut self) -> Result<(), MyError> {
         let paused = self
             .mpv
-            .get_property::<bool>("pause")
+            .get_property("pause")
             .map_err(|err| MyError::Audio(format!("{:?}", err)))?;
 
         if paused {
@@ -89,7 +92,7 @@ impl AudioPlayer {
     }
 
     /// Unmutes the audio playback.
-    ///
+
     /// # Returns
     ///
     /// A `Result` indicating success or an `MyError::Audio` error.
@@ -99,11 +102,17 @@ impl AudioPlayer {
             .map_err(|err| MyError::Audio(format!("{:?}", err)))
     }
 
+    /// Toggles the mute state of the audio.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
     pub fn toggle_mute(&mut self) -> Result<(), MyError> {
         let muted = self
             .mpv
-            .get_property::<bool>("mute")
+            .get_property("mute")
             .map_err(|err| MyError::Audio(format!("{:?}", err)))?;
+
         if muted {
             self.unmute()
         } else {
@@ -111,9 +120,14 @@ impl AudioPlayer {
         }
     }
 
+    /// Stops the audio playback.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
     pub fn stop(&mut self) -> Result<(), MyError> {
         self.mpv
-            .command(&["stop"])
+            .command("stop", &["false"])
             .map_err(|err| MyError::Audio(format!("{:?}", err)))
     }
 }

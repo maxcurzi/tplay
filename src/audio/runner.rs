@@ -63,6 +63,7 @@ impl Runner {
     /// An empty Result.
     pub fn run(&mut self, barrier: std::sync::Arc<std::sync::Barrier>) -> Result<(), MyError> {
         barrier.wait();
+        self.audio_player.resume()?;
         while self.state != State::Stopped {
             select! {
                 recv(self.rx_controls) -> msg => {
