@@ -168,6 +168,22 @@ impl Runner {
         let procimage = self.pipeline.resize(frame)?;
         let grayimage = procimage.clone().into_luma8();
         let rgb_info = procimage.into_rgb8().to_vec();
+
+        // Add newlines to the rgb_info to match the ascii string These are not
+        // really needed, but it's important if you want to copy/paste the
+        // output and preserve the aspect.
+        if self.pipeline.new_lines {
+            let mut rgb_info_newline =
+                Vec::with_capacity(rgb_info.len() + 6 * self.pipeline.target_resolution.0 as usize);
+
+            for (i, pixel) in rgb_info.chunks(3).enumerate() {
+                rgb_info_newline.extend_from_slice(pixel);
+                if (i + 1) % self.pipeline.target_resolution.0 as usize == 0 {
+                    rgb_info_newline.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
+                }
+            }
+            return Ok((self.pipeline.to_ascii(&grayimage), rgb_info_newline));
+        }
         Ok((self.pipeline.to_ascii(&grayimage), rgb_info))
     }
 

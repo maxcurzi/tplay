@@ -10,8 +10,12 @@ use std::num::NonZeroU32;
 /// stores the target resolution (width and height) and the character lookup table used for the
 /// conversion.
 pub struct ImagePipeline {
+    /// The target resolution (width and height) for the pipeline.
     pub target_resolution: (u32, u32),
+    /// The character lookup table used for the conversion.
     pub char_map: Vec<char>,
+    /// Whether to add newlines to the output at the end of each line
+    pub new_lines: bool,
 }
 
 impl ImagePipeline {
@@ -24,10 +28,11 @@ impl ImagePipeline {
     ///   height.
     /// * `char_map` - A vector of characters to be used as the lookup table for ASCII
     ///   conversion.
-    pub fn new(target_resolution: (u32, u32), char_map: Vec<char>) -> Self {
+    pub fn new(target_resolution: (u32, u32), char_map: Vec<char>, new_lines: bool) -> Self {
         Self {
             target_resolution,
             char_map,
+            new_lines,
         }
     }
 
@@ -127,6 +132,15 @@ impl ImagePipeline {
                 let lookup_idx = self.char_map.len() * lum as usize / (u8::MAX as usize + 1);
                 self.char_map[lookup_idx]
             }));
+
+            // Add newlines to the end of each row except the last. NOTE: these
+            // are not really needed because the terminal will wrap lines. But
+            // if you want to copy the output to a file it would be a single
+            // long string without them.
+            if self.new_lines && y < height - 1 {
+                output.push('\r');
+                output.push('\n');
+            }
         }
 
         output
@@ -155,14 +169,14 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
+        let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c'], false);
         assert_eq!(image.target_resolution, (120, 80));
         assert_eq!(image.char_map, vec!['a', 'b', 'c']);
     }
 
     #[test]
     fn test_process() {
-        let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
+        let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c'], false);
         let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
 
         let output = image.resize(&input).expect("Failed to resize image");
@@ -172,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_to_ascii_ext() {
-        let image = ImagePipeline::new((120, 80), CHARS1.chars().collect());
+        let image = ImagePipeline::new((120, 80), CHARS1.chars().collect(), false);
         let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
         let output = image.to_ascii(
             &image
@@ -185,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_to_ascii() {
-        let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
+        let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c'], false);
         let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
         let output = image.to_ascii(
             &image

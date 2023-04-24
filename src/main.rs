@@ -46,6 +46,9 @@ struct Args {
     /// Experimental frame skip flag
     #[arg(short, long, default_value = "false")]
     allow_frame_skip: bool,
+    /// Experimental flag to add newlines
+    #[arg(short, long, default_value = "false")]
+    new_lines: bool,
 }
 
 const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
@@ -123,9 +126,10 @@ impl MediaProcessor {
         let cmaps = args.char_map.chars().collect();
         let w_mod = args.w_mod;
         let allow_frame_skip = args.allow_frame_skip;
+        let new_lines = args.new_lines;
         let handle = thread::spawn(move || -> Result<(), MyError> {
             let mut runner = pipeline::runner::Runner::init(
-                ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps),
+                ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps, new_lines),
                 media,
                 use_fps,
                 tx_frames,

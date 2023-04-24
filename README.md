@@ -82,7 +82,7 @@ sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg liba
 
 **If you are on Windows, use WSL (Windows Subsystem for Linux) and follow the [Linux instructions](#prerequisites-installation-on-linux)**
 
--- Old instructions for Windows (up until crate version 0.2.1) -- 
+-- Old instructions for Windows (up until crate version 0.2.1) --
 - Download OpenCV prebuilt binaries (I used this [one](https://sourceforge.net/projects/opencvlibrary/)) and it was 4.6.0 at the time of writing.
 - Open the package and extract the `opencv` folder to `C:\opencv` or any other location you prefer.
 - Set the following environment variables (update the paths if you extracted the package to a different location):
@@ -140,6 +140,7 @@ cargo run --release -- <media> [options]
 | `-g`, `--gray` | Start in grayscale mode |
 | `-w`, `--w-mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
 | `-a`, `--allow-frame-skip` | Experimental frame skip flag. Try to use if the playback is too slow. |
+| `-n`, `--new-lines` | Experimental flag. Adds newline and carriage return `\n\r` at the end of each line (except the last). Terminals wrap around and don't need new lines, but if you want to copy-paste the text outside the terminal you may want them. The output would be a single long string otherwise. Uses more CPU. |
 
 Substitute `tplay` with `cargo run --release --` if you plan to run from source.
 
