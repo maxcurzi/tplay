@@ -35,13 +35,18 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
 - You want to show off your terminal skills to your friends and make them think you're a hacker.
 
 # Features
+This crate is still in early development, but it already has a lot of features. Here's a list of what it can or can't do:
 - [x] Converts and shows any media to ASCII art in the terminal
 - [x] Supports images/gifs/videos/webcam and **YouTube** links
 - [x] Any resolution, aspect ratio, and framerate
 - [x] Use any character set as supported by your terminal
 - [x] Handy pause/unpause and char map selection [controls](#playback-commands)
 - [x] RGB Colors (on terminals that support RGB colors)
-- [x] Sound support
+- [x] Play sounds
+- [x] Spark joy
+- [ ] Full media controls (forward, backward, loop, etc)
+- [ ] Subtitles
+- [ ] Replace a fully fledged media player
 
 ## RGB Colors
 ![colors](https://user-images.githubusercontent.com/30084738/232452938-06de4ce6-343d-44de-85d9-5f0c99ab4f27.gif)
@@ -67,8 +72,9 @@ Being a Rust crate, you will need to have Rust installed on your system. You can
 The following dependencies are also required:
 
 [OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv), [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0), [MPV](https://mpv.io/installation/), [ffmpeg](https://ffmpeg.org/download.html)
+They are  simply installed on linux with your package manager. See [below](#prerequisites-installation-on-linux) for more details.
 
- Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
+ Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
 ## Prerequisites Installation on Linux
 If you're on Linux, you can install all dependencies with your package manager. For example, on Ubuntu:
@@ -174,11 +180,11 @@ tplay /dev/video0
 ```
 
 # Playback commands
+- `0-9` - change character map
 - `space` - toggle pause/unpause
-- `q` - quit
-- `0-9` - change char map
 - `g` - toggle grayscale/color
 - `m` - toggle mute/unmute
+- `q` - quit
 
 # Known Issues
 - Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) which has great performance on all operative systems I tested tplay on (Linux, Windows).
@@ -192,11 +198,11 @@ https://github.com/search?q=ascii+player&type=repositories
 
 # Contributing
 Contributions are welcome! Please open an issue or submit a pull request.
-Ideally I'd like to implement the following features:
+Some ideas:
 - Reduce external dependencies and streamline installation process.
 - Investigate migration from OpenCV to ffmpeg.
 - More media controls (jump forward, jump backward, loop, etc.).
-- Testing and feedback on installing and running it on MacOS.
+- Testing and feedback on installing and running it on other OSes.
 - Let me know if you have any other ideas!
 
 # License
