@@ -74,7 +74,7 @@ The following dependencies are also required:
 If you're on Linux, you can install OpenCV (and the required Clang) with your package manager. For example, on Ubuntu:
 
 ```bash
-sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg
+sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev
 ```
 
 ## Prerequisites installation on Windows
