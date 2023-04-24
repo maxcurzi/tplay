@@ -197,7 +197,7 @@ fn main() -> Result<(), MyError> {
 
     media_processor.launch_pipeline_thread(&args, media, fps, tx_frames, rx_controls_pipeline)?;
 
-    if let Some(audio) = audio {
+    if let Some(audio) = &audio {
         let title = args.input.clone();
         let file_path = if let Either::Left(audio_track) = audio.as_ref() {
             let x = audio_track.to_str().unwrap_or(&title);
