@@ -1,5 +1,5 @@
 //! The `ImagePipeline` module contains a struct and implementation for converting images to ASCII
-//! art. It provides a pipeline for processing images, resizing them, and converting them to ASCII
+//! art. It offers a pipeline for processing images by resizing and converting them into ASCII
 //! representations using a character lookup table.
 use crate::common::errors::*;
 use fast_image_resize as fr;
@@ -46,7 +46,7 @@ impl ImagePipeline {
     /// Resizes a given `DynamicImage` to the target resolution specified in the `self` object.
     ///
     /// This function takes a reference to a `DynamicImage` and resizes it using the nearest
-    /// neighbor algorithm. The resized image is returned as a new `DynamicImage`.
+    /// neighbor algorithm. The resized image is returned as a `DynamicImage`.
     ///
     /// # Arguments
     ///
@@ -135,9 +135,8 @@ impl ImagePipeline {
 
 #[cfg(test)]
 mod tests {
-    use crate::pipeline::char_maps::CHARS1;
-
     use super::*;
+    use crate::pipeline::char_maps::CHARS1;
     use image::{DynamicImage, ImageError};
     use reqwest;
     use std::io::Cursor;
@@ -166,7 +165,7 @@ mod tests {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
         let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
 
-        let output = image.resize(&input).unwrap();
+        let output = image.resize(&input).expect("Failed to resize image");
         assert_eq!(output.width(), 120);
         assert_eq!(output.height(), 80);
     }
@@ -175,7 +174,12 @@ mod tests {
     fn test_to_ascii_ext() {
         let image = ImagePipeline::new((120, 80), CHARS1.chars().collect());
         let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
-        let output = image.to_ascii(&image.resize(&input).unwrap().into_luma8());
+        let output = image.to_ascii(
+            &image
+                .resize(&input)
+                .expect("Failed to resize image")
+                .into_luma8(),
+        );
         assert_eq!(output.chars().count(), 120 * 80);
     }
 
@@ -183,7 +187,12 @@ mod tests {
     fn test_to_ascii() {
         let image = ImagePipeline::new((120, 80), vec!['a', 'b', 'c']);
         let input = download_image(TEST_IMAGE_URL).expect("Failed to download image");
-        let output = image.to_ascii(&image.resize(&input).unwrap().into_luma8());
+        let output = image.to_ascii(
+            &image
+                .resize(&input)
+                .expect("Failed to resize image")
+                .into_luma8(),
+        );
         assert_eq!(output.len(), 120 * 80);
     }
 }

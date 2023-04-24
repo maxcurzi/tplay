@@ -44,8 +44,6 @@ pub struct Terminal {
     tx_control: Sender<MediaControl>,
     /// Whether to use grayscale colors.
     use_grayscale: bool,
-    /// Barrier
-    barrier: std::sync::Arc<std::sync::Barrier>,
 }
 
 impl Terminal {
@@ -54,12 +52,17 @@ impl Terminal {
     /// # Arguments
     ///
     /// * `title` - The title for the terminal window.
+    /// * `use_grayscale` - Whether to use grayscale colors.
+    /// * `rx_buffer` - The channel for receiving the processed frames from the media processing
+    ///   thread.
+    /// * `tx_control` - The channel for sending control events to the media processing thread.
+    /// * `barrier` - The barrier for synchronizing the media processing thread and the terminal
+    ///   thread.
     pub fn new(
         title: String,
         use_grayscale: bool,
         rx_buffer: Receiver<Option<StringInfo>>,
         tx_control: Sender<MediaControl>,
-        barrier: std::sync::Arc<std::sync::Barrier>,
     ) -> Self {
         Self {
             fg_color: Color::White,
@@ -69,7 +72,6 @@ impl Terminal {
             rx_buffer,
             tx_control,
             use_grayscale,
-            barrier,
         }
     }
 
@@ -153,7 +155,6 @@ impl Terminal {
     /// # Arguments
     ///
     /// * `event` - The event received from the terminal.
-    /// * `commands_buffer` - The shared buffer for sending control commands.
     ///
     /// # Errors
     ///
@@ -254,13 +255,13 @@ impl Terminal {
     ///
     /// # Arguments
     ///
-    /// * `string_buffer` - The shared buffer containing processed frames as strings.
+    /// * `barrier` - A reference to the `Barrier` used to synchronize the start of the animation.
     ///
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations or
     /// communication with the pipeline.
-    pub fn run(&mut self) -> Result<(), MyError> {
+    pub fn run(&mut self, barrier: std::sync::Arc<std::sync::Barrier>) -> Result<(), MyError> {
         execute!(stdout(), EnterAlternateScreen, SetTitle(&self.title))?;
         terminal::enable_raw_mode()?;
 
@@ -271,7 +272,7 @@ impl Terminal {
         let (width, height) = terminal::size()?;
         self.send_control(MediaControl::Resize(width, height))?;
 
-        self.barrier.wait();
+        barrier.wait();
         // Begin drawing and event loop
         while self.state != State::Stopped {
             // Poll and handle events

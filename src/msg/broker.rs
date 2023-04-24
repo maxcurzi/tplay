@@ -1,9 +1,14 @@
-use crossbeam_channel::{select, Receiver, Sender};
-
+//! Message broker for the terminal, pipeline and audio.
+//!
+//! The broker is responsible for handling the communication between the terminal, pipeline and
+//! audio threads. It receives commands from the terminal and forwards them to the pipeline and
+//! audio threads, and receives commands from the pipeline and audio threads and forwards them to
+//! the terminal thread.
 use crate::{
     audio::runner::Control as AudioControl, common::errors::MyError,
     pipeline::runner::Control as PipelineControl,
 };
+use crossbeam_channel::{select, Receiver, Sender};
 
 /// Enum representing the different control commands that can be sent to the Runner.
 #[derive(Debug, PartialEq)]
@@ -12,6 +17,7 @@ pub enum Control {
     PauseContinue,
     /// Command to stop the playback and exit the Runner.
     Exit,
+    /// Command to toggle between mute and unmute.
     MuteUnmute,
     /// Command to set the character map used by the image pipeline.
     /// The argument represents the index of the desired character map.
@@ -19,13 +25,13 @@ pub enum Control {
     /// Command to resize the target resolution of the image pipeline.
     /// The arguments represent the new target width and height, respectively.
     Resize(u16, u16),
-    /// (UNUSED) Command to set grayscale mode. We always extract
-    /// rgb+grayscale from image, the terminal is responsible for the correct
-    /// render mode.
+    /// Command to set grayscale mode. We always extract rgb+grayscale from image, the terminal is
+    /// responsible for the correct render mode.
     SetGrayscale(bool),
 }
 
 type BrokerControl = Control;
+
 /// Read from terminal and send to pipeline and audio
 pub struct MessageBroker {
     rx_channel_terminal: Receiver<BrokerControl>,
@@ -46,7 +52,22 @@ impl MessageBroker {
         }
     }
 
-    pub fn run(&mut self) -> Result<(), MyError> {
+    /// The main function responsible for handling the communication between the terminal, pipeline
+    /// and audio threads.
+    ///
+    /// It receives commands from the terminal and forwards them to the pipeline and audio threads,
+    /// and receives commands from the pipeline and audio threads and forwards them to the terminal
+    /// thread.
+    ///
+    /// # Arguments
+    ///
+    /// * `barrier` - A barrier used to synchronize the start of the audio playback.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), MyError>` - A result indicating whether the function succeeded or failed.
+    pub fn run(&mut self, barrier: std::sync::Arc<std::sync::Barrier>) -> Result<(), MyError> {
+        barrier.wait();
         let mut running = true;
         while running || !self.rx_channel_terminal.is_empty() {
             select! {
@@ -89,7 +110,7 @@ impl MessageBroker {
                                 let _ = tx.send(AudioControl::MuteUnmute);
                             }
                         }
-                        Err(e) => {
+                        Err(_) => {
                             // eprintln!("Error: {}", e);
                         }
                     }

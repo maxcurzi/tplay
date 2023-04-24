@@ -1,10 +1,9 @@
-//! The `runner` module contains the Runner struct and related functionality to
-//! control and run ASCII animations.
+//! The `runner` module contains the Runner struct and related functionality to control and run
+//! ASCII animations.
 //!
-//! The `Runner` struct is responsible for handling the image pipeline,
-//! processing frames, managing playback state, and controlling the frame rate.
-//! It also handles commands for pausing/continuing, resizing, and changing
-//! character maps during playback.
+//! The `Runner` struct is responsible for handling the image pipeline, processing frames, managing
+//! playback state, and controlling the frame rate. It also handles commands for pausing/continuing,
+//! resizing, and changing character maps during playback.
 use super::{frames::FrameIterator, image_pipeline::ImagePipeline};
 use crate::{common::errors::MyError, pipeline::char_maps::*, StringInfo};
 use crossbeam_channel::{select, Receiver, Sender};
@@ -16,17 +15,16 @@ use std::{thread, time::Duration};
 enum State {
     /// The Runner is currently reading and processing new  frames.
     Running,
-    /// The Runner does not process new frames, but can update the terminal by
-    /// processing the last frame again if charset or dimension change.
+    /// The Runner does not process new frames, but can update the terminal by processing the last
+    /// frame again if charset or dimension change.
     Paused,
-    /// The Runner was stopped by a command and will cease processing frames,
-    /// and eventually exit.
+    /// The Runner was stopped by a command and will cease processing frames, and eventually exit.
     Stopped,
 }
 
-/// The `Runner` struct handles the image pipeline, processing frames, managing
-/// playback state, and controlling the frame rate. It also handles commands for
-/// pausing/continuing, resizing, and changing character maps during playback.
+/// The `Runner` struct handles the image pipeline, processing frames, managing playback state, and
+/// controlling the frame rate. It also handles commands for pausing/continuing, resizing, and
+/// changing character maps during playback.
 pub struct Runner {
     /// The image pipeline responsible for processing images.
     pipeline: ImagePipeline,
@@ -46,10 +44,6 @@ pub struct Runner {
     char_maps: Vec<Vec<char>>,
     /// The last frame that was processed by the Runner.
     last_frame: Option<DynamicImage>,
-    /// Barrier
-    barrier: std::sync::Arc<std::sync::Barrier>,
-    /// Allow frame skipping
-    allow_frame_skip: bool,
 }
 
 /// Enum representing the different control commands that can be sent to the Runner.
@@ -65,11 +59,11 @@ pub enum Control {
     /// Command to resize the target resolution of the image pipeline.
     /// The arguments represent the new target width and height, respectively.
     Resize(u16, u16),
-    /// (UNUSED) Command to set grayscale mode. We always extract
-    /// rgb+grayscale from image, the terminal is responsible for the correct
-    /// render mode.
+    /// Command to set grayscale mode. We always extract rgb+grayscale from image, the
+    /// terminal is responsible for the correct render mode.
     SetGrayscale(bool),
 }
+
 impl Runner {
     /// Initializes a new Runner instance.
     ///
@@ -78,12 +72,9 @@ impl Runner {
     /// * `pipeline` - The image pipeline responsible for processing images.
     /// * `media` - The FrameIterator that handles iterating through frames.
     /// * `fps` - The target frames per second (frame rate) for the Runner.
-    /// * `string_buffer` - A shared buffer for sending processed frames as strings.
-    /// * `condvar` - A condition variable to notify that a new frame is ready.
-    /// * `commands_buffer` - A shared buffer for sending control commands to the Runner.
+    /// * `tx_frames` - A channel for receiving processed frames as strings.
+    /// * `rx_controls` - A channel for sending control commands to the Runner.
     /// * `w_mod` - The width modifier (use 2 for emojis).
-    /// * `char_maps` - A collection of character maps available for the image pipeline.
-    /// * `last_frame` - The last frame that was processed by the Runner.
     pub fn init(
         pipeline: ImagePipeline,
         media: FrameIterator,
@@ -91,8 +82,6 @@ impl Runner {
         tx_frames: Sender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
         w_mod: u32,
-        barrier: std::sync::Arc<std::sync::Barrier>,
-        allow_frame_skip: bool,
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_map.clone(),
@@ -117,33 +106,8 @@ impl Runner {
             w_mod,
             char_maps,
             last_frame: None,
-            barrier,
-            allow_frame_skip,
         }
     }
-
-    /// Determines if it's time to send the next frame based on the current time and the target
-    /// frame rate. Updates the time_count accordingly if it's time to send the next frame.
-    ///
-    /// # Arguments
-    ///
-    /// * `time_count` - A mutable reference to the time counter used for frame rate control.
-    ///
-    /// # Returns
-    ///
-    /// A boolean indicating whether it's time to send the next frame.
-    // fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> bool {
-    //     let target_frame_duration =
-    //         Duration::from_nanos((1_000_000_000_u64 / self.fps as u64) as u64);
-    //     let elapsed_time = time_count.elapsed();
-
-    //     if elapsed_time >= target_frame_duration {
-    //         *time_count += target_frame_duration;
-    //         true
-    //     } else {
-    //         false
-    //     }
-    // }
 
     /// Processes the given frame using the image pipeline and converts the processed image to an
     /// ASCII string representation.
@@ -154,7 +118,8 @@ impl Runner {
     ///
     /// # Returns
     ///
-    /// A String containing the ASCII representation of the processed image.
+    /// A Result containing a tuple of the ASCII string representation of the processed image and
+    /// the RGB data of the processed image.
     fn process_frame(&mut self, frame: &DynamicImage) -> Result<StringInfo, MyError> {
         let procimage = self.pipeline.resize(frame)?;
         let grayimage = procimage.clone().into_luma8();
@@ -162,18 +127,27 @@ impl Runner {
         Ok((self.pipeline.to_ascii(&grayimage), rgb_info))
     }
 
-    /// The main function responsible for running the animation. It processes control commands,
-    /// updates the state of the Runner, processes frames, and sends the resulting ASCII strings
-    /// to the string buffer.
-    pub fn run(&mut self) -> Result<(), MyError> {
-        self.barrier.wait();
+    /// The main function responsible for running the animation.
+    ///
+    /// It processes control commands, updates the state of the Runner, processes frames, and sends
+    /// the resulting ASCII strings to the string buffer.
+    ///
+    /// # Returns
+    ///
+    /// An empty Result.
+    pub fn run(
+        &mut self,
+        barrier: std::sync::Arc<std::sync::Barrier>,
+        allow_frame_skip: bool,
+    ) -> Result<(), MyError> {
+        barrier.wait();
         let mut time_count = std::time::Instant::now();
         while self.state != State::Stopped {
             let frame_needs_refresh = self.process_control_commands();
 
             let (should_process_frame, frames_to_skip) = self.should_process_frame(&mut time_count);
             if should_process_frame {
-                if frames_to_skip > 0 && self.allow_frame_skip {
+                if frames_to_skip > 0 && allow_frame_skip {
                     self.media.skip_frames(frames_to_skip);
                 }
                 let frame = self.get_current_frame();
@@ -182,7 +156,8 @@ impl Runner {
                 select! {
                     send(self.tx_frames, None) -> _ => {
                         let string_info = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
-                        let _ = self.tx_frames.try_send(string_info); // Best effort send. If the buffer is full the frame will be dropped
+                        // Best effort send. If the buffer is full the frame will be dropped
+                        let _ = self.tx_frames.try_send(string_info);
                     },
                     default(Duration::from_millis(5)) => {
                         // Terminal may be struggling to keep up. Give it some slack!
@@ -197,14 +172,12 @@ impl Runner {
     }
 
     /// Processes control commands from the commands buffer and updates the Runner state and
-    /// other properties accordingly. Returns a boolean indicating if the frame needs to be
-    /// refreshed.
+    /// other properties accordingly.
     ///
     /// # Returns
     ///
     /// A boolean indicating if the frame needs to be refreshed.
     fn process_control_commands(&mut self) -> bool {
-        // Get the next control event
         let mut needs_refresh = false;
 
         // If we have control events, process them
@@ -256,19 +229,16 @@ impl Runner {
             self.char_maps[(char_map % self.char_maps.len() as u32) as usize].clone();
     }
 
-    // /// Determines if a frame should be processed based on the current time and the Runner's state.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `time_count` - A mutable reference to the time counter used for frame rate control.
-    // ///
-    // /// # Returns
-    // ///
-    // /// A boolean indicating whether a frame should be processed.
-    // fn should_process_frame(&self, time_count: &mut std::time::Instant) -> bool {
-    //     self.time_to_send_next_frame(time_count)
-    //         && (self.state == State::Running || self.state == State::Paused)
-    // }
+    /// Determines if a frame should be processed based on the current time and the Runner's state.
+    ///
+    /// # Arguments
+    ///
+    /// * `time_count` - A mutable reference to the time counter used for frame rate control.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing a boolean indicating whether a frame should be processed, and the number
+    /// of frames to skip if we are behind schedule.
     fn should_process_frame(&self, time_count: &mut std::time::Instant) -> (bool, usize) {
         let (time_to_send_next_frame, frames_to_skip) = self.time_to_send_next_frame(time_count);
 
@@ -280,9 +250,19 @@ impl Runner {
         }
     }
 
+    /// Determines if the next frame should be sent based on the current time and the Runner's
+    /// frame rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `time_count` - A mutable reference to the time counter used for frame rate control.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing a boolean indicating whether the next frame should be sent, and the
+    /// number of frames to skip if we are behind schedule.
     fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> (bool, usize) {
-        let target_frame_duration =
-            Duration::from_nanos((1_000_000_000_u64 / self.fps as u64) as u64);
+        let target_frame_duration = Duration::from_nanos(1_000_000_000_u64 / self.fps as u64);
         let elapsed_time = time_count.elapsed();
 
         if elapsed_time >= target_frame_duration {
@@ -294,6 +274,7 @@ impl Runner {
             (false, 0)
         }
     }
+
     /// Retrieves the current frame based on the Runner's state.
     ///
     /// # Returns
@@ -316,7 +297,8 @@ impl Runner {
     ///
     /// # Returns
     ///
-    /// An Optional StringInfo tuple containing the ASCII representation of the processed frame and RGB info.
+    /// An Optional StringInfo tuple containing the ASCII representation of the processed frame and
+    /// RGB info.
     fn process_current_frame(
         &mut self,
         frame: Option<&DynamicImage>,

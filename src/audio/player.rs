@@ -3,9 +3,8 @@
 //!
 //! The AudioPlayer struct is responsible for handling audio playback, including play, pause,
 //! mute, unmute, and stop commands.
-use mpv::MpvHandler;
-
 use crate::common::errors::MyError;
+use mpv::MpvHandler;
 
 /// The AudioPlayer struct handles audio playback using the mpv backend.
 pub struct AudioPlayer {

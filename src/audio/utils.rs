@@ -1,10 +1,17 @@
+//! This module contains utilities for working with audio files. It uses the
+//! `ffmpeg` command line tool to extract the audio from the video file, and
+//! convert it to mp3 format.
+//! The `has_audio` function uses the `ffprobe` command line tool to check if
+//! the video file contains an audio stream.
+//! The `extract_audio` function uses the `ffmpeg` command line tool to extract
+//! the audio stream from the video file, and convert it to mp3 format.
+use crate::common::errors::MyError;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use tempfile::NamedTempFile;
 
-use crate::common::errors::MyError;
-
+#[allow(dead_code)]
 pub fn extract_audio(input_path: &str) -> std::io::Result<PathBuf> {
     let output_temp = NamedTempFile::new()?;
     let output_path = output_temp.path().with_extension("mp3");
@@ -28,20 +35,6 @@ pub fn extract_audio(input_path: &str) -> std::io::Result<PathBuf> {
         ))
     }
 }
-
-// pub fn has_audio(input_path: &str) -> std::io::Result<bool> {
-//     let status = Command::new("ffmpeg")
-//         .arg("-i")
-//         .arg(input_path)
-//         .arg("-vn") // Disable video
-//         .arg("-acodec")
-//         .arg("mp3") // Use the mp3 codec
-//         .arg("-y") // Overwrite output file if it exists
-//         .arg("/dev/null")
-//         .status()?;
-
-//     Ok(status.success())
-// }
 
 pub fn has_audio(file_path: &str) -> Result<bool, MyError> {
     let output = Command::new("ffprobe")

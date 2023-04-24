@@ -1,15 +1,7 @@
 //! Main module for the application.
 //!
 //! This module contains the main function and handles command line arguments,
-//! media processing, and terminal display.
-//! The main function launches two threads, one for processing the media and
-//! one for displaying the terminal.
-//! The media processing thread is responsible for reading the media file,
-//! processing it, and sending the processed frames to the terminal thread.
-//! The terminal thread is responsible for displaying the terminal and
-//! receiving the processed frames from the media processing thread.
-//! The media processing thread and the terminal thread communicate via a
-//! shared buffer.
+//! and launches the audio and image pipelines as well as the terminal.
 mod audio;
 mod common;
 mod downloader;
@@ -23,9 +15,8 @@ use common::errors::*;
 use crossbeam_channel::{bounded, unbounded};
 use either::Either;
 use msg::broker::Control as MediaControl;
-use pipeline::frames::FrameIterator;
 use pipeline::{
-    char_maps::CHARS1, frames::open_media, image_pipeline::ImagePipeline,
+    char_maps::CHARS1, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
     runner::Control as PipelineControl,
 };
 use std::thread;
@@ -89,8 +80,7 @@ impl MediaProcessor {
                 tx_controls_pipeline,
                 tx_controls_audio,
             );
-            barrier.wait();
-            broker.run()
+            broker.run(barrier)
         });
         self.handles.push(handle);
         Ok(())
@@ -105,8 +95,8 @@ impl MediaProcessor {
     ) -> Result<(), MyError> {
         let barrier = Arc::clone(&self.barrier);
         let handle = thread::spawn(move || -> Result<(), MyError> {
-            let mut term = Terminal::new(title, gray, rx_frames, tx_controls, barrier);
-            term.run()
+            let mut term = Terminal::new(title, gray, rx_frames, tx_controls);
+            term.run(barrier)
         });
         self.handles.push(handle);
         Ok(())
@@ -141,10 +131,8 @@ impl MediaProcessor {
                 tx_frames,
                 rx_controls_pipeline,
                 w_mod,
-                barrier,
-                allow_frame_skip,
             );
-            runner.run()
+            runner.run(barrier, allow_frame_skip)
         });
         self.handles.push(handle);
         Ok(())
@@ -158,8 +146,8 @@ impl MediaProcessor {
         let barrier = Arc::clone(&self.barrier);
         let handle = thread::spawn(move || -> Result<(), MyError> {
             let player = audio::player::AudioPlayer::new(&file_path)?;
-            let mut runner = audio::runner::Runner::new(player, rx_controls_audio, barrier);
-            runner.run()
+            let mut runner = audio::runner::Runner::new(player, rx_controls_audio);
+            runner.run(barrier)
         });
         self.handles.push(handle);
         Ok(())
@@ -177,7 +165,10 @@ fn main() -> Result<(), MyError> {
 
     let title = args.input.clone();
 
-    let (media, fps, audio) = open_media(title)?;
+    let media_data = open_media(title)?;
+    let media = media_data.frame_iter;
+    let fps = media_data.fps;
+    let audio = media_data.audio_path;
 
     let num_threads = if audio.is_some() { 4 } else { 3 };
 
@@ -195,26 +186,16 @@ fn main() -> Result<(), MyError> {
     };
 
     let mut media_processor = MediaProcessor::new(num_threads);
-    let _ = media_processor.launch_broker_thread(
-        rx_controls,
-        tx_controls_pipeline,
-        tx_controls_audio,
-    )?;
+    media_processor.launch_broker_thread(rx_controls, tx_controls_pipeline, tx_controls_audio)?;
 
-    let _ = media_processor.launch_terminal_thread(
+    media_processor.launch_terminal_thread(
         args.input.clone(),
         args.gray,
         rx_frames,
         tx_controls,
     )?;
 
-    let _ = media_processor.launch_pipeline_thread(
-        &args,
-        media,
-        fps,
-        tx_frames,
-        rx_controls_pipeline,
-    )?;
+    media_processor.launch_pipeline_thread(&args, media, fps, tx_frames, rx_controls_pipeline)?;
 
     if let Some(audio) = audio {
         let title = args.input.clone();
@@ -224,7 +205,7 @@ fn main() -> Result<(), MyError> {
         } else {
             title
         };
-        let _ = media_processor.launch_audio_thread(file_path, rx_controls_audio)?;
+        media_processor.launch_audio_thread(file_path, rx_controls_audio)?;
     }
 
     media_processor.join_threads();

@@ -1,4 +1,4 @@
-//! Provides functionality to open and iterate over different media types.
+//! Provides functionality to open and iterate over various media types.
 //!
 //! This module contains the `FrameIterator` enum and its associated functions for handling
 //! different media types such as images, videos, and animated GIFs. It also includes helper
@@ -7,31 +7,30 @@ use crate::{audio::utils::has_audio, common::errors::*, downloader::youtube};
 use either::Either;
 use gif;
 use image::{io::Reader as ImageReader, DynamicImage, ImageBuffer};
-use num::Rational64;
-use num::ToPrimitive;
+use num::{Rational64, ToPrimitive};
 use opencv::{imgproc, prelude::*, videoio::VideoCapture};
 use serde_json::Value;
-use std::str::FromStr;
 use std::{
     fs::File,
     path::Path,
     process::{Command, Stdio},
+    str::FromStr,
 };
 use tempfile::TempPath;
 use url::Url;
 
 /// An iterator over the frames of a media file.
 ///
-/// This enum represents an iterator over the frames of different types of media files, including
-/// static images, videos, and animated GIFs. Each variant of the enum corresponds to a different
-/// media type.
+/// This enum represents an iterator for different types of media files, such as
+/// static images, videos, and animated GIFs.
 ///
 /// # Variants
 ///
-/// * `Image` - Represents a single-frame static image. Contains an `Option<DynamicImage>`.
+/// * `Image` - Represents a single-frame static image. Contains an
+///   `Option<DynamicImage>`.
 /// * `Video` - Represents a video file. Contains a `VideoCapture` object.
-/// * `AnimatedGif` - Represents an animated GIF file. Contains a vector of `DynamicImage` frames
-///   and the index of the current frame.
+/// * `AnimatedGif` - Represents an animated GIF file. Contains a vector of
+///   `DynamicImage` frames and the index of the current frame.
 pub enum FrameIterator {
     Image(Option<DynamicImage>),
     Video(VideoCapture),
@@ -39,6 +38,19 @@ pub enum FrameIterator {
         frames: Vec<DynamicImage>,
         current_frame: usize,
     },
+}
+
+/// A named struct for storing the data returned by `open_media`.
+///
+/// # Fields
+///
+/// * `frame_iter` - A `FrameIterator` for iterating over the frames of the media file.
+/// * `fps` - The frame rate of the media file, if available.
+/// * `audio_path` - The path to the audio track of the media file, if available.
+pub struct MediaData {
+    pub frame_iter: FrameIterator,
+    pub fps: Option<f64>,
+    pub audio_path: Option<Either<TempPath, String>>,
 }
 
 /// Implements the `Iterator` trait for `FrameIterator`.
@@ -68,7 +80,17 @@ impl Iterator for FrameIterator {
         }
     }
 }
+
 impl FrameIterator {
+    /// Skips the specified number of frames.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of frames to skip.
+    ///
+    /// # Returns
+    ///
+    /// A relevant FrameIterator.
     pub fn skip_frames(&mut self, n: usize) {
         match self {
             FrameIterator::Image(_) => {
@@ -227,7 +249,7 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
         ) {
             frames.push(DynamicImage::ImageRgba8(image));
         } else {
-            // eprintln!("Could not decode frame");
+            // eprintln!("Failed to decode frame");
         }
     }
 
@@ -237,6 +259,16 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
     })
 }
 
+/// Extracts the frame rate from a video file using `ffprobe`.
+///
+/// # Arguments
+///
+/// * `video_path` - A reference to the path of the video file.
+///
+/// # Returns
+///
+/// An `Option` containing the frame rate if the frame rate is successfully
+/// extracted, or `None` if an error occurs.
 fn extract_fps(video_path: &str) -> Option<f64> {
     let output = Command::new("ffprobe")
         .arg("-v")
@@ -262,8 +294,8 @@ fn extract_fps(video_path: &str) -> Option<f64> {
             .unwrap_or("");
 
         let frame_rate_f = Rational64::from_str(r_frame_rate);
-        if frame_rate_f.is_ok() {
-            return Some(frame_rate_f.unwrap().to_f64().unwrap());
+        if let Ok(frame_rate) = frame_rate_f {
+            return Some(frame_rate.to_f64().expect("Failed to parse FPS value"));
         }
     }
 
@@ -272,8 +304,8 @@ fn extract_fps(video_path: &str) -> Option<f64> {
 
 /// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
 ///
-/// This function accepts a path to a media file and determines its type based on its extension. It
-/// supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG), videos (MP4, AVI, WEBM, MKV, MOV, FLV,
+/// This function takes a path to a media file and identifies its type based on the file extension.
+/// It supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG), videos (MP4, AVI, WEBM, MKV, MOV, FLV,
 /// OGG), and animated GIFs. If the provided path is a URL pointing to a YouTube video, the video
 /// will be downloaded and opened.
 ///
@@ -283,11 +315,9 @@ fn extract_fps(video_path: &str) -> Option<f64> {
 ///
 /// # Returns
 ///
-/// A `Result` containing a `FrameIterator` if the media file is successfully opened, or a `MyError`
-/// if an error occurs.
-pub fn open_media(
-    path: String,
-) -> Result<(FrameIterator, Option<f64>, Option<Either<TempPath, String>>), MyError> {
+/// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
+/// `MyError` if an error occurs.
+pub fn open_media(path: String) -> Result<MediaData, MyError> {
     let p = Path::new(&path);
     let x = Path::new(p).to_owned();
     let path = x.as_path(); //.as_ref();
@@ -300,7 +330,11 @@ pub fn open_media(
                 let video = youtube::download_video(path.to_str().unwrap_or(""))?;
                 let fps = extract_fps(video.as_os_str().to_str().unwrap_or(""));
                 let video_open = open_video(&video)?;
-                return Ok((video_open, fps, Some(Either::Left(video))));
+                return Ok(MediaData {
+                    frame_iter: video_open,
+                    fps,
+                    audio_path: Some(Either::Left(video)),
+                });
             }
         }
     }
@@ -313,11 +347,34 @@ pub fn open_media(
         None
     };
     match ext {
+        // Image extensions
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
-        | Some("jpeg") => Ok((open_image(path)?, None, None)),
+        | Some("jpeg") => Ok(MediaData {
+            frame_iter: open_image(path)?,
+            fps: None,
+            audio_path: None,
+        }),
+
+        // Video extensions
         Some("mp4") | Some("avi") | Some("webm") | Some("mkv") | Some("mov") | Some("flv")
-        | Some("ogg") => Ok((open_video(path)?, fps, audio_track)),
-        Some("gif") => Ok((open_gif(path)?, None, None)),
-        _ => Ok((open_video(path)?, fps, audio_track)), // Unknown extension, try to open as video anyway
+        | Some("ogg") => Ok(MediaData {
+            frame_iter: open_video(path)?,
+            fps,
+            audio_path: audio_track,
+        }),
+
+        // Gif
+        Some("gif") => Ok(MediaData {
+            frame_iter: open_gif(path)?,
+            fps: None,
+            audio_path: None,
+        }),
+
+        // Unknown extension, try open as video
+        _ => Ok(MediaData {
+            frame_iter: open_video(path)?,
+            fps,
+            audio_path: audio_track,
+        }),
     }
 }
