@@ -1,7 +1,7 @@
 //! The `terminal` module provides functionality for displaying an animation in
 //! the terminal and handling user input events such as pausing/continuing,
 //! resizing, and changing character maps.
-use crate::{common::errors::*, runner::Control, StringInfo};
+use crate::{common::errors::*, msg::broker::Control as MediaControl, StringInfo};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
@@ -41,7 +41,7 @@ pub struct Terminal {
     /// The channel for receiving the processed frames from the media processing thread.
     rx_buffer: Receiver<Option<StringInfo>>,
     /// The channel for sending control events to the media processing thread.
-    tx_control: Sender<Control>,
+    tx_control: Sender<MediaControl>,
     /// Whether to use grayscale colors.
     use_grayscale: bool,
 }
@@ -52,11 +52,17 @@ impl Terminal {
     /// # Arguments
     ///
     /// * `title` - The title for the terminal window.
+    /// * `use_grayscale` - Whether to use grayscale colors.
+    /// * `rx_buffer` - The channel for receiving the processed frames from the media processing
+    ///   thread.
+    /// * `tx_control` - The channel for sending control events to the media processing thread.
+    /// * `barrier` - The barrier for synchronizing the media processing thread and the terminal
+    ///   thread.
     pub fn new(
         title: String,
         use_grayscale: bool,
         rx_buffer: Receiver<Option<StringInfo>>,
-        tx_control: Sender<Control>,
+        tx_control: Sender<MediaControl>,
     ) -> Self {
         Self {
             fg_color: Color::White,
@@ -67,6 +73,47 @@ impl Terminal {
             tx_control,
             use_grayscale,
         }
+    }
+
+    /// The main loop of the Terminal that runs the animation, handles user input,
+    /// and manages the playback state.
+    ///
+    /// # Arguments
+    ///
+    /// * `barrier` - A reference to the `Barrier` used to synchronize the start of the animation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with the terminal operations or
+    /// communication with the pipeline.
+    pub fn run(&mut self, barrier: std::sync::Arc<std::sync::Barrier>) -> Result<(), MyError> {
+        execute!(stdout(), EnterAlternateScreen, SetTitle(&self.title))?;
+        terminal::enable_raw_mode()?;
+
+        // Clear screen
+        self.clear()?;
+
+        // Initialize terminal size and pass terminal size to pipeline
+        let (width, height) = terminal::size()?;
+        self.send_control(MediaControl::Resize(width, height))?;
+
+        barrier.wait();
+        // Begin drawing and event loop
+        while self.state != State::Stopped {
+            // Poll and handle events
+            if event::poll(Duration::from_millis(0))? {
+                let ev = event::read()?;
+                self.handle_event(ev)?;
+            }
+
+            // Wait for next frame to draw
+            if let Ok(Some(s)) = self.rx_buffer.try_recv() {
+                self.draw(&s)?;
+            };
+        }
+
+        self.cleanup()?;
+        Ok(())
     }
 
     /// Clears the terminal screen and sets the initial terminal state.
@@ -149,7 +196,6 @@ impl Terminal {
     /// # Arguments
     ///
     /// * `event` - The event received from the terminal.
-    /// * `commands_buffer` - The shared buffer for sending control commands.
     ///
     /// # Errors
     ///
@@ -170,13 +216,15 @@ impl Terminal {
                 code: KeyCode::Esc, ..
             }) => {
                 self.state = State::Stopped;
-                self.send_control(Control::Exit)?;
+                self.send_control(MediaControl::Exit)?;
             }
+
+            // Pause/Continue
             Event::Key(KeyEvent {
                 code: KeyCode::Char(' '),
                 ..
             }) => {
-                self.send_control(Control::PauseContinue)?;
+                self.send_control(MediaControl::PauseContinue)?;
                 self.state = match self.state {
                     State::Running => State::Paused,
                     State::Paused => State::Running,
@@ -186,7 +234,7 @@ impl Terminal {
 
             // Resize
             Event::Resize(width, height) => {
-                self.send_control(Control::Resize(width, height))?;
+                self.send_control(MediaControl::Resize(width, height))?;
                 // Drain buffer
                 while self
                     .rx_buffer
@@ -200,7 +248,7 @@ impl Terminal {
                 code: KeyCode::Char(digit),
                 ..
             }) if digit.is_ascii_digit() => {
-                self.send_control(Control::SetCharMap(digit.to_digit(10).unwrap_or_else(
+                self.send_control(MediaControl::SetCharMap(digit.to_digit(10).unwrap_or_else(
                     || panic!("{error}: {digit:?}", error = ERROR_PARSE_DIGIT_FAILED),
                 )))?;
             }
@@ -211,8 +259,17 @@ impl Terminal {
                 ..
             }) => {
                 self.use_grayscale = !self.use_grayscale;
-                self.send_control(Control::SetGrayscale(self.use_grayscale))?;
+                self.send_control(MediaControl::SetGrayscale(self.use_grayscale))?;
             }
+
+            // Mute/unmute
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('m') | KeyCode::Char('M'),
+                ..
+            }) => {
+                self.send_control(MediaControl::MuteUnmute)?;
+            }
+
             _ => {}
         }
         Ok(())
@@ -228,49 +285,9 @@ impl Terminal {
     ///
     /// Returns an error if there is an issue with the terminal operations.
     /// or communication with the pipeline.
-    fn send_control(&self, control: Control) -> Result<(), MyError> {
+    fn send_control(&self, control: MediaControl) -> Result<(), MyError> {
         self.tx_control
             .send(control)
             .map_err(|e| MyError::Terminal(format!("{error}: {e:?}", error = ERROR_CHANNEL, e = e)))
-    }
-
-    /// The main loop of the Terminal that runs the animation, handles user input,
-    /// and manages the playback state.
-    ///
-    /// # Arguments
-    ///
-    /// * `string_buffer` - The shared buffer containing processed frames as strings.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if there is an issue with the terminal operations or
-    /// communication with the pipeline.
-    pub fn run(&mut self) -> Result<(), MyError> {
-        execute!(stdout(), EnterAlternateScreen, SetTitle(&self.title))?;
-        terminal::enable_raw_mode()?;
-
-        // Clear screen
-        self.clear()?;
-
-        // Initialize terminal size and pass terminal size to pipeline
-        let (width, height) = terminal::size()?;
-        self.send_control(Control::Resize(width, height))?;
-
-        // Begin drawing and event loop
-        while self.state != State::Stopped {
-            // Poll and handle events
-            if event::poll(Duration::from_millis(0))? {
-                let ev = event::read()?;
-                self.handle_event(ev)?;
-            }
-
-            // Wait for next frame to draw
-            if let Ok(Some(s)) = self.rx_buffer.try_recv() {
-                self.draw(&s)?;
-            };
-        }
-
-        self.cleanup()?;
-        Ok(())
     }
 }

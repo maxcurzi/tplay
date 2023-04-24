@@ -7,7 +7,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'tplay'",
+            "name": "Debug executable 'tplay' YouTube",
             "cargo": {
                 "args": [
                     "build",
@@ -21,6 +21,46 @@
             },
             "args": [
                 "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'tplay' local",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=tplay",
+                    "--package=tplay"
+                ],
+                "filter": {
+                    "name": "tplay",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "assets/yt.webm",
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'tplay' camera",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=tplay",
+                    "--package=tplay"
+                ],
+                "filter": {
+                    "name": "tplay",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "/dev/video0",
             ],
             "cwd": "${workspaceFolder}"
         },

@@ -8,6 +8,8 @@ use thiserror::Error;
 /// This enum provides variants for different categories of errors:
 /// * `Application`: General application errors with a string description.
 /// * `Terminal`: Terminal-related errors with a string description.
+/// * `Pipeline`: Image pipeline-related errors with a string description.
+/// * `Audio`: Audio-related errors with a string description.
 #[derive(Error, Debug)]
 pub enum MyError {
     #[error("Application error: {0}")]
@@ -18,6 +20,9 @@ pub enum MyError {
 
     #[error("Terminal error: {0}")]
     Terminal(String),
+
+    #[error("Audio error: {0}")]
+    Audio(String),
 }
 
 impl From<MyError> for io::Error {

@@ -8,7 +8,7 @@
 [![Crates.io](https://img.shields.io/crates/d/tplay)](https://crates.io/crates/tplay)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-View images, videos, webcam, etc directly in the terminal as ASCII. All images you see [below](#features) are just made by characters on the terminal command line, drawn really fast.
+View images, videos (files or YouTube links), webcam, etc directly in the terminal as ASCII. All images you see [below](#features) are just made by characters on the terminal command line, drawn really fast.
 
 # Table of Contents
 
@@ -32,17 +32,16 @@ View images, videos, webcam, etc directly in the terminal as ASCII. All images y
 - You _really_ don't like graphical applications or are working on a computer without graphical capabilities.
 - You are looking for a quick way to convert any visual media to ASCII art.
 - You want to watch a video in the terminal, but you don't want to use `mpv` or `vlc` because they're too mainstream.
-- You like ASCII art so much that you don't need sound to enjoy a good movie.
 - You want to show off your terminal skills to your friends and make them think you're a hacker.
 
 # Features
 - [x] Converts and shows any media to ASCII art in the terminal
-- [x] Supports images/gifs/videos/webcam and YouTube links
+- [x] Supports images/gifs/videos/webcam and **YouTube** links
 - [x] Any resolution, aspect ratio, and framerate
 - [x] Use any character set as supported by your terminal
 - [x] Handy pause/unpause and char map selection [controls](#playback-commands)
 - [x] RGB Colors (on terminals that support RGB colors)
-- [ ] Sound (not yet!)
+- [x] Sound support
 
 ## RGB Colors
 ![colors](https://user-images.githubusercontent.com/30084738/232452938-06de4ce6-343d-44de-85d9-5f0c99ab4f27.gif)
@@ -66,15 +65,14 @@ These instructions will get you a copy of the project up and running on your loc
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
-[OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv), [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
-
+[OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv), [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0), [MPV](https://mpv.io/installation/), [ffmpeg](https://ffmpeg.org/download.html)
  Optional dependency for YouTube support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
 # Prerequisites Installation on Linux
 If you're on Linux, you can install OpenCV (and the required Clang) with your package manager. For example, on Ubuntu:
 
 ```bash
-sudo apt install libopencv-dev clang libclang-dev
+sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg
 ```
 
 ## Prerequisites installation on Windows
@@ -89,8 +87,9 @@ If you have troubles installing OpenCV in Windows (I know I have) try this (assu
 
 - Install [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) from binary, you'll likely want to use the 64-bit version on a modern computer.
   - Add this to your PATH variable (or whatever corresponding directory you have on your computer): `C:\Program Files\LLVM\bin`
-
-
+- Install [MPV](https://mpv.io/installation/) from binary, you'll likely want to use the 64-bit version on a modern computer.
+- Install [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation) from binary, you'll likely want to use the 64-bit version on a modern computer.
+  - Add this to your PATH variable (or whatever corresponding directory you have on your computer): `C:\Program Files\yt-dlp\bin`
 
 # Development:
 You may need to install the following packages on some Linux distributions:
@@ -138,9 +137,11 @@ tplay <media> [options]
 |--------|-------------|
 | `media` | Name of the file or stream to be processed (required). |
 | `-f`, `--fps` | Maximum frames per second for the output (default: 60). |
-| `-c`, `--char_map` | Custom lookup character table to use for the output (default: ` .:-=+*#%@`). |
+| `-c`, `--char-map` | Custom lookup character table to use for the output (default: ` .:-=+*#%@`). |
 | `-g`, `--gray` | Start in grayscale mode |
-| `--w_mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
+| `-w`, `--w-mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
+| `-a`, `--allow-frame-skip` | Experimental frame skip flag. Try to use if the playback is too slow. |
+|
 
 
 ```bash
@@ -154,34 +155,34 @@ tplay ./image.png
 tplay ./image.gif
 
 # Example: local video
-tplay ./video.mp4 --fps 60
+tplay ./video.mp4
 
 # Example: remote video (YouTube)
-tplay https://www.youtube.com/watch?v=dQw4w9WgXcQ --fps 30
+tplay https://www.youtube.com/watch?v=dQw4w9WgXcQ
 
 # Example: remote video (Other)
-tplay http://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4 --fps 30
+tplay http://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4
 
-# Example: YouTube video - 30fps, with different char maps
-tplay https://www.youtube.com/watch?v=fShlVhCfHig --fps 30 --char-map " ░▒▓█"
+# Example: YouTube video, with different char maps
+tplay https://www.youtube.com/watch?v=fShlVhCfHig --char-map " ░▒▓█"
 
-# Example: YouTube video - 30fps, with different char maps (use w-mod to adjust width when using emoji-based char maps)
-tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --fps 30 --char-map "🍎🍏❤️😊" --w-mod 2
+# Example: YouTube video, with different char maps (use w-mod to adjust width when using emoji-based char maps)
+tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --char-map "🍎🍏❤️😊" --w-mod 2
 
 # Example: webcam on Linux (YMMV on other OSes)
-tplay /dev/video0 --fps 30
+tplay /dev/video0
 ```
 
 # Playback commands
-- `space` - pause/unpause
+- `space` - toggle pause/unpause
 - `q` - quit
 - `0-9` - change char map
 - `g` - toggle grayscale/color
+- `m` - toggle mute/unmute
 
 # Known Issues
 - Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) which has great performance on all operative systems I tested tplay on (Linux, Windows).
-- Video FPS is not automatically detected and it defaults to 60fps unless you manually set a value using the `--fps` argument.
-- Media playback is cpu-intensive. To improve performance, try lowering the `fps` value, increase font size, or reduce the terminal window size.
+- Media playback is cpu-intensive. To improve performance, try lowering the `fps` value, increase font size, reduce the terminal window size, or open with the `--allow-frame-skip` flag.
 
 # Alternatives
 This is my ASCII media player: _there are many like it, but this one is mine._
@@ -192,8 +193,8 @@ https://github.com/search?q=ascii+player&type=repositories
 # Contributing
 Contributions are welcome! Please open an issue or submit a pull request.
 Ideally I'd like to implement the following features:
-- Sound playback (both audio track of videos and audio files)
-- More media controls (forward, backward, loop, etc.)
+- Investigate migration from OpenCV to ffmpeg
+- More media controls (jump forward, jump backward, loop, etc.)
 - Testing and feedback on installing and running it on MacOS
 - Let me know if you have any other ideas!
 

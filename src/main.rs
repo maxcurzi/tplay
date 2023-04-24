@@ -1,28 +1,23 @@
 //! Main module for the application.
 //!
 //! This module contains the main function and handles command line arguments,
-//! media processing, and terminal display.
-//! The main function launches two threads, one for processing the media and
-//! one for displaying the terminal.
-//! The media processing thread is responsible for reading the media file,
-//! processing it, and sending the processed frames to the terminal thread.
-//! The terminal thread is responsible for displaying the terminal and
-//! receiving the processed frames from the media processing thread.
-//! The media processing thread and the terminal thread communicate via a
-//! shared buffer.
+//! and launches the audio and image pipelines as well as the terminal.
+mod audio;
 mod common;
 mod downloader;
+mod msg;
 mod pipeline;
 mod terminal;
 
+use audio::runner::Control as AudioControl;
 use clap::Parser;
-use common::errors::MyError;
+use common::errors::*;
 use crossbeam_channel::{bounded, unbounded};
+use either::Either;
+use msg::broker::Control as MediaControl;
 use pipeline::{
-    char_maps::CHARS1,
-    frames::{open_media, FrameIterator},
-    image_pipeline::ImagePipeline,
-    runner::{self, Control},
+    char_maps::CHARS1, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
+    runner::Control as PipelineControl,
 };
 use std::thread;
 use terminal::Terminal;
@@ -36,9 +31,9 @@ struct Args {
     /// Name of the file/stream to process
     #[arg(required = true, index = 1)]
     input: String,
-    /// Maximum fps
-    #[arg(short, long, default_value = "60")]
-    fps: u64,
+    /// Force a user-specified FPS
+    #[arg(short, long)]
+    fps: Option<String>,
     /// Custom lookup char table
     #[arg(short, long, default_value = CHARS1)]
     char_map: String,
@@ -48,45 +43,172 @@ struct Args {
     /// Experimental width modifier (emojis have 2x width)
     #[arg(short, long, default_value = "1")]
     w_mod: u32,
+    /// Experimental frame skip flag
+    #[arg(short, long, default_value = "false")]
+    allow_frame_skip: bool,
 }
 
 const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
+const DEFAULT_FPS: f64 = 30.0;
 
-/// Main function for the application.
-///
-/// This function parses command line arguments, opens the media, initializes the
-/// pipeline and terminal threads, and then waits for them to finish.
+use std::sync::{Arc, Barrier};
+use std::thread::JoinHandle;
+
+struct MediaProcessor {
+    handles: Vec<JoinHandle<Result<(), MyError>>>,
+    barrier: Arc<Barrier>,
+}
+
+impl MediaProcessor {
+    pub fn new(n_threads: usize) -> Self {
+        MediaProcessor {
+            handles: Vec::with_capacity(n_threads),
+            barrier: Arc::new(Barrier::new(n_threads)),
+        }
+    }
+
+    pub fn launch_broker_thread(
+        &mut self,
+        rx_controls: crossbeam_channel::Receiver<MediaControl>,
+        tx_controls_pipeline: Option<crossbeam_channel::Sender<PipelineControl>>,
+        tx_controls_audio: Option<crossbeam_channel::Sender<AudioControl>>,
+    ) -> Result<(), MyError> {
+        let barrier = Arc::clone(&self.barrier);
+        let handle = thread::spawn(move || -> Result<(), MyError> {
+            let mut broker = msg::broker::MessageBroker::new(
+                rx_controls,
+                tx_controls_pipeline,
+                tx_controls_audio,
+            );
+            broker.run(barrier)
+        });
+        self.handles.push(handle);
+        Ok(())
+    }
+
+    pub fn launch_terminal_thread(
+        &mut self,
+        title: String,
+        gray: bool,
+        rx_frames: crossbeam_channel::Receiver<Option<StringInfo>>,
+        tx_controls: crossbeam_channel::Sender<MediaControl>,
+    ) -> Result<(), MyError> {
+        let barrier = Arc::clone(&self.barrier);
+        let handle = thread::spawn(move || -> Result<(), MyError> {
+            let mut term = Terminal::new(title, gray, rx_frames, tx_controls);
+            term.run(barrier)
+        });
+        self.handles.push(handle);
+        Ok(())
+    }
+
+    pub fn launch_pipeline_thread(
+        &mut self,
+        args: &Args,
+        media: FrameIterator,
+        fps: Option<f64>,
+        tx_frames: crossbeam_channel::Sender<Option<StringInfo>>,
+        rx_controls_pipeline: crossbeam_channel::Receiver<PipelineControl>,
+    ) -> Result<(), MyError> {
+        let barrier = Arc::clone(&self.barrier);
+        let mut use_fps = DEFAULT_FPS;
+        if let Some(fps) = fps {
+            use_fps = fps;
+        }
+        if let Some(fps) = &args.fps {
+            use_fps = fps
+                .parse::<f64>()
+                .map_err(|err| MyError::Application(format!("{ERROR_DATA}:{err:?}")))?;
+        }
+        let cmaps = args.char_map.chars().collect();
+        let w_mod = args.w_mod;
+        let allow_frame_skip = args.allow_frame_skip;
+        let handle = thread::spawn(move || -> Result<(), MyError> {
+            let mut runner = pipeline::runner::Runner::init(
+                ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps),
+                media,
+                use_fps,
+                tx_frames,
+                rx_controls_pipeline,
+                w_mod,
+            );
+            runner.run(barrier, allow_frame_skip)
+        });
+        self.handles.push(handle);
+        Ok(())
+    }
+
+    pub fn launch_audio_thread(
+        &mut self,
+        file_path: String,
+        rx_controls_audio: crossbeam_channel::Receiver<AudioControl>,
+    ) -> Result<(), MyError> {
+        let barrier = Arc::clone(&self.barrier);
+        let handle = thread::spawn(move || -> Result<(), MyError> {
+            let player = audio::player::AudioPlayer::new(&file_path)?;
+            let mut runner = audio::runner::Runner::new(player, rx_controls_audio);
+            runner.run(barrier)
+        });
+        self.handles.push(handle);
+        Ok(())
+    }
+
+    pub fn join_threads(self) {
+        for handle in self.handles {
+            let _ = handle.join();
+        }
+    }
+}
+
 fn main() -> Result<(), MyError> {
     let args = Args::parse();
 
-    let media: FrameIterator = open_media(args.input.clone())?;
+    let title = args.input.clone();
 
-    // Set up a channel for passing frames and controls
+    let media_data = open_media(title)?;
+    let media = media_data.frame_iter;
+    let fps = media_data.fps;
+    let audio = media_data.audio_path;
+
+    let num_threads = if audio.is_some() { 4 } else { 3 };
+
     let (tx_frames, rx_frames) = bounded::<Option<StringInfo>>(1);
-    let (tx_controls, rx_controls) = unbounded::<Control>();
 
-    // Launch Terminal Thread
-    let handle_thread_terminal = thread::spawn(move || {
-        let mut term = Terminal::new(args.input, args.gray, rx_frames, tx_controls);
-        term.run().expect("Error running terminal thread");
-    });
+    let (tx_controls, rx_controls) = unbounded::<MediaControl>();
+    let (tx_controls_pipeline, rx_controls_pipeline) = unbounded::<PipelineControl>();
+    let (tx_controls_audio, rx_controls_audio) = unbounded::<AudioControl>();
 
-    // Launch Pipeline Thread
-    let handle_thread_pipeline = thread::spawn(move || {
-        let mut runner = runner::Runner::init(
-            ImagePipeline::new(DEFAULT_TERMINAL_SIZE, args.char_map.chars().collect()),
-            media,
-            args.fps,
-            tx_frames,
-            rx_controls,
-            args.w_mod,
-        );
-        runner.run().expect("Error running pipeline thread");
-    });
+    let tx_controls_pipeline = Some(tx_controls_pipeline);
+    let tx_controls_audio = if audio.is_some() {
+        Some(tx_controls_audio)
+    } else {
+        None
+    };
 
-    // Wait for threads to finish
-    let _ = handle_thread_pipeline.join();
-    let _ = handle_thread_terminal.join();
+    let mut media_processor = MediaProcessor::new(num_threads);
+    media_processor.launch_broker_thread(rx_controls, tx_controls_pipeline, tx_controls_audio)?;
+
+    media_processor.launch_terminal_thread(
+        args.input.clone(),
+        args.gray,
+        rx_frames,
+        tx_controls,
+    )?;
+
+    media_processor.launch_pipeline_thread(&args, media, fps, tx_frames, rx_controls_pipeline)?;
+
+    if let Some(audio) = audio {
+        let title = args.input.clone();
+        let file_path = if let Either::Left(audio_track) = audio.as_ref() {
+            let x = audio_track.to_str().unwrap_or(&title);
+            String::from(x)
+        } else {
+            title
+        };
+        media_processor.launch_audio_thread(file_path, rx_controls_audio)?;
+    }
+
+    media_processor.join_threads();
 
     Ok(())
 }
