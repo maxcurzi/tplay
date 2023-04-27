@@ -75,7 +75,7 @@ impl Runner {
     /// * `tx_frames` - A channel for receiving processed frames as strings.
     /// * `rx_controls` - A channel for sending control commands to the Runner.
     /// * `w_mod` - The width modifier (use 2 for emojis).
-    pub fn init(
+    pub fn new(
         pipeline: ImagePipeline,
         media: FrameIterator,
         fps: f64,

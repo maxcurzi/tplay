@@ -128,7 +128,7 @@ impl MediaProcessor {
         let allow_frame_skip = args.allow_frame_skip;
         let new_lines = args.new_lines;
         let handle = thread::spawn(move || -> Result<(), MyError> {
-            let mut runner = pipeline::runner::Runner::init(
+            let mut runner = pipeline::runner::Runner::new(
                 ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps, new_lines),
                 media,
                 use_fps,
