@@ -77,7 +77,14 @@ They are  simply installed on linux with your package manager. See [below](#prer
  Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
 ## Prerequisites Installation on Linux
-If you're on Linux, you can install all dependencies with your package manager. For example, on Ubuntu:
+If you're on Linux, you can install all dependencies with your package manager. First install Rust:
+
+```bash
+sudo apt install curl
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Then install `tplay`'s prerequisite dependencies:
 
 ```bash
 sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev
