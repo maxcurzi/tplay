@@ -196,6 +196,7 @@ tplay /dev/video0
 # Known Issues
 - Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) which has great performance on all operative systems I tested tplay on (Linux, Windows).
 - Media playback is cpu-intensive. To improve performance, try lowering the `fps` value, increase font size, reduce the terminal window size, or open with the `--allow-frame-skip` flag.
+- If you get this error: `panicked at 'Failed to init MPV builder: VersionMismatch { linked: 65644, loaded: 131072 }'` see [this issue](https://github.com/maxcurzi/tplay/issues/3) for a workaround.
 
 # Alternatives
 This is my ASCII media player: _there are many like it, but this one is mine._
