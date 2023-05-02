@@ -43,16 +43,26 @@ See https://github.com/yt-dlp/yt-dlp/wiki/Installation"
         .suffix(".webm")
         .tempfile()?;
 
-    let output = Command::new("yt-dlp")
-        .arg(url)
+    let mut cmd = Command::new("yt-dlp");
+    cmd.arg(url)
         .arg("-o")
         .arg("-")
-        .stdout(Stdio::from(temp_file.as_file().try_clone()?))
-        .output()?;
+        .stdout(Stdio::from(temp_file.as_file().try_clone()?));
+
+    let child = cmd
+        .spawn()
+        .map_err(|e| MyError::Application(e.to_string()))?;
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| MyError::Application(e.to_string()))?;
 
     if output.status.success() {
         // Flush the buffer to ensure that all the data is written to disk
-        temp_file.as_file().sync_all()?;
+        temp_file
+            .as_file()
+            .sync_all()
+            .map_err(|e| MyError::Application(e.to_string()))?;
 
         // Get the path to the temporary file
         let temp_file_path = temp_file.into_temp_path();
