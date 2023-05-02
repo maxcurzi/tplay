@@ -1,5 +1,9 @@
 use crate::common::errors::MyError;
+#[cfg(feature = "mpv_0_34")]
 use libmpv::Mpv;
+
+#[cfg(feature = "mpv_0_35")]
+use libmpv_sirno::Mpv;
 
 /// The AudioPlayer struct handles audio playback using the libmpv backend.
 pub struct AudioPlayer {
