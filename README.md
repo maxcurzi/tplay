@@ -118,7 +118,7 @@ sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg liba
 
 ### Arch Linux 
 
-You can install it on arch linux using the [aur]() by running the following commands:
+You can install it on arch linux using the [aur](https://aur.archlinux.org/packages/tplay-git) by running the following commands:
 
 ``` bash
 paru -S tplay-git
