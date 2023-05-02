@@ -22,13 +22,9 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
     - [Windows](#prerequisites-installation-on-windows)
   - [Installation](#installation)
     - [For users](#for-users)
-     
-     -[Arch Linux](#arch-linux)
-     
-     -[Other Distros](#other-distros)
-     
-     -[Install Using Cargo](#install-using-cargo)
-    
+     - [Arch Linux](#arch-linux)
+     - [Other Distros](#other-distros)
+     - [Install Using Cargo](#install-using-cargo)
     - [For developers](#for-developers)
 - [Usage](#usage)
 - [Contributing](#contributing)
