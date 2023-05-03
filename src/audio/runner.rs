@@ -3,6 +3,7 @@
 //! playback state, and controlling the frame rate. It also handles commands for
 //! pausing/continuing, and stopping the playback.
 use crate::audio;
+use crate::audio::player::AudioPlayerControls;
 use crate::common::errors::MyError;
 use crossbeam_channel::{select, Receiver};
 
@@ -63,7 +64,7 @@ impl Runner {
     /// An empty Result.
     pub fn run(&mut self, barrier: std::sync::Arc<std::sync::Barrier>) -> Result<(), MyError> {
         barrier.wait();
-        self.audio_player.resume()?;
+        self.audio_player.player.resume()?;
         while self.state != State::Stopped {
             select! {
                 recv(self.rx_controls) -> msg => {
@@ -75,15 +76,15 @@ impl Runner {
                                 State::Paused => State::Running,
                                 State::Stopped => State::Stopped,
                             };
-                            self.audio_player.toggle_play()?;
+                            self.audio_player.player.toggle_play()?;
 
                         },
                         Control::MuteUnmute => {
-                            self.audio_player.toggle_mute()?;
+                            self.audio_player.player.toggle_mute()?;
                         },
                         Control::Exit => {
                             self.state = State::Stopped;
-                            self.audio_player.stop()?;
+                            self.audio_player.player.stop()?;
                         },
                     }
                 },
