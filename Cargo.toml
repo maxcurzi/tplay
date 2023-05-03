@@ -42,8 +42,7 @@ ffmpeg-next = "6.0.0"
 crossbeam-channel = "0.5.8"
 num = "0.4.0"
 either = "1.8.1"
-libmpv = "2.0.1"                                    # MPV 0.34
-# libmpv-sirno = "2.0.2-fork.1" # MPV 0.35 See: https://github.com/maxcurzi/tplay/issues/3
+rodio = { version = "0.17.1" }              # Audio playback alternative to mpv
 
 [dev-dependencies]
 reqwest = { version = "0.11.6", features = ["blocking"] }
@@ -55,3 +54,5 @@ path = "src/main.rs"
 [package.metadata.deb]
 maintainer = "Max Curzi <massimiliano.curzi@gmail.com>"
 depends = "libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev"
+
+

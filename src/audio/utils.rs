@@ -12,9 +12,12 @@ use std::process::{Command, Stdio};
 use tempfile::NamedTempFile;
 
 #[allow(dead_code)]
-pub fn extract_audio(input_path: &str) -> std::io::Result<PathBuf> {
-    let output_temp = NamedTempFile::new()?;
-    let output_path = output_temp.path().with_extension("mp3");
+pub fn extract_audio(input_path: &str) -> std::io::Result<NamedTempFile> {
+    let output_temp = tempfile::Builder::new()
+        .prefix("my_temp_file_")
+        .suffix(".mp3")
+        .tempfile()?;
+    let output_path: PathBuf = output_temp.path().to_path_buf();
 
     let status = Command::new("ffmpeg")
         .arg("-i")
@@ -27,7 +30,7 @@ pub fn extract_audio(input_path: &str) -> std::io::Result<PathBuf> {
         .status()?;
 
     if status.success() {
-        Ok(output_path)
+        Ok(output_temp)
     } else {
         Err(std::io::Error::new(
             std::io::ErrorKind::Other,
