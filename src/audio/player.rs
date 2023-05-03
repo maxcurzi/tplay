@@ -4,7 +4,7 @@ use crate::MyError;
 use super::mpv_player::mpv_player::MpvAudioPlayer;
 
 #[cfg(not(any(feature = "mpv_0_34", feature = "mpv_0_35")))]
-use super::rodio_player::RodioAudioPlayer;
+use super::rodio_player::rodio_player::RodioAudioPlayer;
 
 pub struct AudioPlayer {
     #[cfg(any(feature = "mpv_0_34", feature = "mpv_0_35"))]

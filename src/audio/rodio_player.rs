@@ -1,13 +1,10 @@
-#[cfg(feature = "rodio_audio")]
 #[cfg(not(any(feature = "mpv_0_34", feature = "mpv_0_35")))]
 pub(super) mod rodio_player {
 
+    use crate::audio::{player::AudioPlayerControls, utils::extract_audio};
     use crate::common::errors::MyError;
     use rodio;
     use std::io::BufReader;
-
-    use super::player::AudioPlayerControls;
-    use super::utils::extract_audio;
 
     /// The AudioPlayer struct handles audio playback using the rodio backend.
     pub struct RodioAudioPlayer {
@@ -27,7 +24,7 @@ pub(super) mod rodio_player {
         /// # Returns
         ///
         /// A new AudioPlayer instance.
-        pub(super) fn new(input_path: &str) -> Result<Self, MyError> {
+        pub(crate) fn new(input_path: &str) -> Result<Self, MyError> {
             let (_stream, stream_handle) = rodio::OutputStream::try_default().map_err(|err| {
                 MyError::Audio(format!("Failed to initialize audio stream: {:?}", err))
             })?;
