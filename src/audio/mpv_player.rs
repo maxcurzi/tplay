@@ -32,9 +32,6 @@ pub(super) mod mpv_player {
                     err
                 ))
             })?;
-            // mpv.set_property("audio-file-auto", "load").map_err(|err| {
-            //     MyError::Audio(format!("Failed to set audio-file-auto property: {:?}", err))
-            // })?;
 
             mpv.command("loadfile", &[input_path])
                 .map_err(|err| MyError::Audio(format!("Failed to load audio file: {:?}", err)))?;
@@ -98,7 +95,7 @@ pub(super) mod mpv_player {
         }
 
         /// Unmutes the audio playback.
-
+        ///
         /// # Returns
         ///
         /// A `Result` indicating success or an `MyError::Audio` error.
