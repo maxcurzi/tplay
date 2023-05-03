@@ -1,24 +1,25 @@
 use crate::MyError;
 
-#[cfg(any(feature = "mpv_0_34", feature = "mpv_0_35"))]
+#[cfg(not(feature = "rodio_audio"))]
 use super::mpv_player::mpv_player::MpvAudioPlayer;
 
-#[cfg(not(any(feature = "mpv_0_34", feature = "mpv_0_35")))]
+#[cfg(feature = "rodio_audio")]
 use super::rodio_player::rodio_player::RodioAudioPlayer;
 
 pub struct AudioPlayer {
-    #[cfg(any(feature = "mpv_0_34", feature = "mpv_0_35"))]
+    #[cfg(not(feature = "rodio_audio"))]
     pub player: MpvAudioPlayer,
-    #[cfg(not(any(feature = "mpv_0_34", feature = "mpv_0_35")))]
+
+    #[cfg(feature = "rodio_audio")]
     pub player: RodioAudioPlayer,
 }
 
 impl AudioPlayer {
     pub fn new(input_file: &str) -> Result<Self, MyError> {
-        #[cfg(any(feature = "mpv_0_34", feature = "mpv_0_35"))]
+        #[cfg(not(feature = "rodio_audio"))]
         let player = MpvAudioPlayer::new(input_file)?;
 
-        #[cfg(not(any(feature = "mpv_0_34", feature = "mpv_0_35")))]
+        #[cfg(feature = "rodio_audio")]
         let player = RodioAudioPlayer::new(input_file)?;
 
         Ok(Self { player })

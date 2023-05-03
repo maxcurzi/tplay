@@ -1,4 +1,4 @@
-#[cfg(not(any(feature = "mpv_0_34", feature = "mpv_0_35")))]
+#[cfg(feature = "rodio_audio")]
 pub(super) mod rodio_player {
 
     use crate::audio::{player::AudioPlayerControls, utils::extract_audio};

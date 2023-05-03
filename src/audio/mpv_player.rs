@@ -1,4 +1,4 @@
-#[cfg(any(feature = "mpv_0_34", feature = "mpv_0_35"))]
+#[cfg(not(feature = "rodio_audio"))]
 pub(super) mod mpv_player {
     use crate::audio::player::AudioPlayerControls;
     use crate::common::errors::MyError;
