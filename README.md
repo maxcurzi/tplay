@@ -250,6 +250,7 @@ Mostly did it for fun while learning Rust. I also wanted to see if it was possib
 # Credits
 
 We would like to thank the following people for their contributions and support:
+
 <a href="https://github.com/maxcurzi/tplay/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=maxcurzi/tplay" />
 </a>
