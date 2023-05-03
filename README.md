@@ -158,6 +158,13 @@ cargo test
 
 # Run the project (use --release for faster performance)
 cargo run --release -- <media> [options]
+
+# By default the audio backend uses the rodio crate. If you have issue and want to try using the
+# mpv player as backend, then try the following:
+cargo run --release --features="mpv_0_35" --no-default-features -- <media> [options]
+# or (for mpv 0.34)
+cargo run --release --features="mpv_0_34" --no-default-features -- <media> [options]
+# MPV support may be dropped in future releases
 ```
 
 # Usage

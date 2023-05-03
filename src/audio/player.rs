@@ -1,14 +1,22 @@
+//! This is the high level module for the audio player, it simply provides a
+//! basic structure that contains the audio player instance (depending on which
+//! audio backend is used). It also defines a trait AudioPlayerControls, which
+//! serves as the interface that audio backends are expected to implement.
 use crate::MyError;
 
-use super::rodio_player::RodioAudioPlayer;
+#[cfg(not(feature = "rodio_audio"))]
+use super::mpv_player::MpvAudioPlayer as BackendAudioPlayer;
+
+#[cfg(feature = "rodio_audio")]
+use super::rodio_player::RodioAudioPlayer as BackendAudioPlayer;
 
 pub struct AudioPlayer {
-    pub player: RodioAudioPlayer,
+    pub player: BackendAudioPlayer,
 }
 
 impl AudioPlayer {
     pub fn new(input_file: &str) -> Result<Self, MyError> {
-        let player = RodioAudioPlayer::new(input_file)?;
+        let player = BackendAudioPlayer::new(input_file)?;
 
         Ok(Self { player })
     }

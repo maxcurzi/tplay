@@ -1,6 +1,6 @@
 [package]
 name = "tplay"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 authors = ["Max Curzi <massimiliano.curzi@gmail.com>"]
 description = "A media player that visualizes images and videos as ASCII art directly in the terminal (with sound)."
@@ -42,7 +42,9 @@ ffmpeg-next = "6.0.0"
 crossbeam-channel = "0.5.8"
 num = "0.4.0"
 either = "1.8.1"
-rodio = { version = "0.17.1" }              # Audio playback alternative to mpv
+libmpv = { version = "2.0.1", optional = true }              # MPV 0.34
+libmpv-sirno = { version = "2.0.2-fork.1", optional = true } # MPV 0.35 See: https://github.com/maxcurzi/tplay/issues/3
+rodio = { version = "0.17.1", optional = true }              # Audio playback alternative to mpv
 
 [dev-dependencies]
 reqwest = { version = "0.11.6", features = ["blocking"] }
@@ -55,4 +57,13 @@ path = "src/main.rs"
 maintainer = "Max Curzi <massimiliano.curzi@gmail.com>"
 depends = "libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev"
 
+[package.metadata.features]
+mpv_0_34 = []
+mpv_0_35 = []
+rodio_audio = []
 
+[features]
+default = ["rodio_audio"]
+mpv_0_34 = ["libmpv"]
+mpv_0_35 = ["libmpv-sirno"]
+rodio_audio = ["rodio"]
