@@ -1,14 +1,8 @@
 #[cfg(any(feature = "mpv_0_34", feature = "mpv_0_35"))]
 pub(super) mod mpv_player {
-    use crate::common::errors::MyError;
-
-    #[cfg(feature = "mpv_0_34")]
-    use libmpv::Mpv;
-
-    #[cfg(feature = "mpv_0_35")]
-    use libmpv_sirno::Mpv;
-
     use crate::audio::player::AudioPlayerControls;
+    use crate::common::errors::MyError;
+    use libmpv::Mpv;
 
     /// The AudioPlayer struct handles audio playback using the libmpv backend.
     pub struct MpvAudioPlayer {
