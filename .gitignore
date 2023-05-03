@@ -10,8 +10,7 @@ Cargo.lock
 **/*.rs.bk
 
 
-# Added by cargo
-/target
-
 # Manually added
-/assets
+assets
+debian
+

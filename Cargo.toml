@@ -57,8 +57,13 @@ path = "src/main.rs"
 maintainer = "Max Curzi <massimiliano.curzi@gmail.com>"
 depends = "libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev"
 
+[package.metadata.features]
+mpv_0_34 = []
+mpv_0_35 = []
+rodio_audio = []
+
 [features]
-default = ["rodio"]
+default = ["libmpv"]
 mpv_0_34 = ["libmpv"]
 mpv_0_35 = ["libmpv-sirno"]
 rodio_audio = ["rodio"]
