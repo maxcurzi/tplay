@@ -23,7 +23,7 @@ enum State {
 /// handling commands for pausing/continuing, and stopping.
 pub struct Runner {
     /// The audio player responsible for playing the audio file.
-    audio_player: audio::player::AudioPlayer,
+    audio_player: audio::rodio_player::AudioPlayer,
     /// The current playback state of the Runner.
     state: State,
     /// The channel used to receive commands for pausing/continuing, and stopping.
@@ -42,7 +42,10 @@ pub enum Control {
 }
 
 impl Runner {
-    pub fn new(audio_player: audio::player::AudioPlayer, rx_controls: Receiver<Control>) -> Self {
+    pub fn new(
+        audio_player: audio::rodio_player::AudioPlayer,
+        rx_controls: Receiver<Control>,
+    ) -> Self {
         Self {
             audio_player,
             state: State::Running,

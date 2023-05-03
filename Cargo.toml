@@ -44,6 +44,7 @@ num = "0.4.0"
 either = "1.8.1"
 libmpv = { version = "2.0.1", optional = true }              # MPV 0.34
 libmpv-sirno = { version = "2.0.2-fork.1", optional = true } # MPV 0.35 See: https://github.com/maxcurzi/tplay/issues/3
+rodio = { version = "0.17.1", optional = true }              # Audio playback alternative to mpv
 
 [dev-dependencies]
 reqwest = { version = "0.11.6", features = ["blocking"] }
@@ -57,6 +58,7 @@ maintainer = "Max Curzi <massimiliano.curzi@gmail.com>"
 depends = "libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev"
 
 [features]
-default = ["mpv_0_34"]
+default = ["rodio"]
 mpv_0_34 = ["libmpv"]
 mpv_0_35 = ["libmpv-sirno"]
+rodio_audio = ["rodio"]

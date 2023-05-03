@@ -149,7 +149,7 @@ impl MediaProcessor {
     ) -> Result<(), MyError> {
         let barrier = Arc::clone(&self.barrier);
         let handle = thread::spawn(move || -> Result<(), MyError> {
-            let player = audio::player::AudioPlayer::new(&file_path)?;
+            let player = audio::rodio_player::AudioPlayer::new(&file_path)?;
             let mut runner = audio::runner::Runner::new(player, rx_controls_audio);
             runner.run(barrier)
         });
