@@ -30,6 +30,7 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
 - [Contributing](#contributing)
 - [License](#license)
 - [Why](#why)
+- [Credits](#credits)
 
 # Who is it for?
 - You _really_ don't like graphical applications or are working on a computer without graphical capabilities.
@@ -245,3 +246,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 _Your Scientists Were So Preoccupied With Whether Or Not They Could, They Didn’t Stop To Think If They Should_
 
 Mostly did it for fun while learning Rust. I also wanted to see if it was possible to make a video player that could run in the terminal. I think it's pretty cool that you can play videos in the terminal now. I hope you enjoy it too!
+
+# Credits
+
+We would like to thank the following people for their contributions and support:
+
+<a href="https://github.com/maxcurzi/tplay/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=maxcurzi/tplay" />
+</a>
