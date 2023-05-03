@@ -22,6 +22,9 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
     - [Windows](#prerequisites-installation-on-windows)
   - [Installation](#installation)
     - [For users](#for-users)
+      - [Arch Linux](#arch-linux)
+      - [Other Distros](#other-distros)
+      - [Install Using Cargo](#install-using-cargo)
     - [For developers](#for-developers)
 - [Usage](#usage)
 - [Contributing](#contributing)
@@ -112,6 +115,21 @@ sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg liba
 # Installation
 
 ## For users
+
+### Arch Linux 
+
+You can install it on arch linux using the [aur](https://aur.archlinux.org/packages/tplay-git) by running the following commands:
+
+``` bash
+paru -S tplay-git
+```
+
+### Other Distros
+
+currently the package is not available on other linux distros. But with contribution and support it can be made available on other distros as well :).
+
+### Install Using Cargo
+
 You can install the `tplay` command line tool by running the following command:
 
 ```bash
