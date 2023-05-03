@@ -74,11 +74,11 @@ These instructions will get you a copy of the project up and running on your loc
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
-
-[OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv), [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0), [MPV](https://mpv.io/installation/), [ffmpeg](https://ffmpeg.org/download.html)
+[OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv), [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) [ffmpeg](https://ffmpeg.org/download.html)
 They are  simply installed on linux with your package manager. See [below](#prerequisites-installation-on-linux) for more details.
 
  Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
+ Optional dependency for audio playback via MPV: [MPV](https://mpv.io/installation/)
 
 ## Prerequisites Installation on Linux
 If you're on Linux, you can install all dependencies with your package manager. First install Rust:
@@ -91,7 +91,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install `tplay`'s prerequisite dependencies:
 
 ```bash
-sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev
+sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev
 ```
 
 ## Prerequisites installation on Windows
