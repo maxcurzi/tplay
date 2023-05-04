@@ -2077,7 +2077,7 @@ checksum = "b6bc1c9ce2b5135ac7f93c72918fc37feb872bdc6a5533a8b85eb4b86bfdae52"
 
 [[package]]
 name = "tplay"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "clap",
  "crossbeam-channel",
