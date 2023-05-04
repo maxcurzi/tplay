@@ -94,7 +94,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install `tplay`'s prerequisite dependencies:
 
 ```bash
-sudo apt install libopencv-dev clang libclang-dev ffmpeg libasound2-dev
+sudo apt install libopencv-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev
 # Optionally install yt-dlp if you want to play YouTube videos
 python -m pip install yt-dlp
 ```
