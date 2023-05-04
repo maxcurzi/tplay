@@ -278,7 +278,7 @@ impl Runner {
     /// A tuple containing a boolean indicating whether the next frame should be sent, and the
     /// number of frames to skip if we are behind schedule.
     fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> (bool, usize) {
-        let target_frame_duration = Duration::from_nanos(1_000_000_000_u64 / self.fps as u64);
+        let target_frame_duration = Duration::from_nanos((1_000_000_000_f64 / self.fps) as u64);
         let elapsed_time = time_count.elapsed();
 
         if elapsed_time >= target_frame_duration {
