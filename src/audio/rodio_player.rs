@@ -1,3 +1,4 @@
+//! High level audio player control based on rodio
 use crate::audio::{player::AudioPlayerControls, utils::extract_audio};
 use crate::common::errors::MyError;
 use rodio;

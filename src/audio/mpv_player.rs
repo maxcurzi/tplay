@@ -1,4 +1,4 @@
-
+//! High level audio player control based on MPV
 use crate::audio::player::AudioPlayerControls;
 use crate::common::errors::MyError;
 use libmpv::Mpv;
