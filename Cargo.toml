@@ -55,7 +55,7 @@ path = "src/main.rs"
 
 [package.metadata.deb]
 maintainer = "Max Curzi <massimiliano.curzi@gmail.com>"
-depends = "libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev"
+depends = "libopencv-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev"
 
 [package.metadata.features]
 mpv_0_34 = []
