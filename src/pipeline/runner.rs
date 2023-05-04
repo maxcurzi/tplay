@@ -344,3 +344,68 @@ impl Runner {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // use crate::msg::broker::Control as MediaControl;
+    use crate::pipeline::{
+        char_maps::CHARS1,
+        frames::open_media, // frames::FrameIterator,
+        image_pipeline::ImagePipeline,
+        runner::Control as PipelineControl,
+    };
+    use crate::StringInfo;
+    use crossbeam_channel::{bounded, unbounded};
+
+    const MEDIA_FILE: &str =
+        "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4";
+
+    #[test]
+    fn test_time_to_send_next_frame() {
+        let fps = 23.976;
+        let media_data = open_media(MEDIA_FILE.to_string()).unwrap();
+        let media = media_data.frame_iter;
+        let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
+
+        let (tx_frames, _rx_frames) = bounded::<Option<StringInfo>>(1);
+        let (_tx_controls_pipeline, rx_controls_pipeline) = unbounded::<PipelineControl>();
+
+        let runner = Runner::new(pipeline, media, fps, tx_frames, rx_controls_pipeline, 1);
+
+        let mut time_count = std::time::Instant::now();
+
+        // Horrible, there should be a better way to ensure that
+        // time_count.elapsed() does not rely on real-time
+        thread::sleep(Duration::from_nanos((1_000_000_000_f64 / fps) as u64 + 1));
+
+        // Test that we process the first frame
+        let (should_process, frames_to_skip) = runner.time_to_send_next_frame(&mut time_count);
+        assert_eq!(should_process, true);
+        assert_eq!(frames_to_skip, 0);
+
+        // No time change. Test that we don't process the second frame
+        let (should_process, frames_to_skip) = runner.time_to_send_next_frame(&mut time_count);
+        assert_eq!(should_process, false);
+        assert_eq!(frames_to_skip, 0);
+
+        // Horrible, there should be a better way to ensure that
+        // time_count.elapsed() does not rely on real-time
+        thread::sleep(Duration::from_nanos((1_000_000_000_f64 / fps) as u64 + 1));
+
+        // Test that we process the third frame
+        let (should_process, frames_to_skip) = runner.time_to_send_next_frame(&mut time_count);
+        assert_eq!(should_process, true);
+        assert_eq!(frames_to_skip, 0);
+
+        // Add enough time to process the next frame but skip two
+        // Horrible, there should be a better way to ensure that
+        // time_count.elapsed() does not rely on real-time
+        thread::sleep(Duration::from_nanos((1_000_000_000_f64 / fps) as u64 + 1) * 3);
+
+        // Test that we process the fourth frame
+        let (should_process, frames_to_skip) = runner.time_to_send_next_frame(&mut time_count);
+        assert_eq!(should_process, true);
+        assert_eq!(frames_to_skip, 2);
+    }
+}
