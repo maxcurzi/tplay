@@ -100,12 +100,12 @@ python -m pip install yt-dlp
 ```
 
 ## Prerequisites installation on Windows
-**Installing all prerequisited on Windows is NOT RECOMMENDED as it's a lengthy process prone to errors, performance is also very poor. Use WSL and follow the [Linux instructions](#prerequisites-installation-on-linux)**
+The crate can run on Windows and all prerequisites (opencv, ffmpeg) can be installed with vcpkg. However the installation/setup process is lengthy and prone to errors. Performance is also very poor. Save yourself a headache: use WSL and follow the [Linux instructions](#prerequisites-installation-on-linux).
 
 # Installation
 
 ## For users
-### Arch Linux 
+### Arch Linux
 
 You can install it on Arch Linux using [aur](https://aur.archlinux.org/packages/tplay-git) by running the following commands (using [paru](https://github.com/Morganamilo/paru)):
 
@@ -151,11 +151,16 @@ cargo run --release -- <media> [options]
 
 ## Feature flags
 By default the crate uses [rodio](https://crates.io/crates/rodio) for audio playback. If you wish to use MPV (libmpv1 libmpv1-dev) as a audio playback backend, you can build/install the crate with:
+
 `--features="mpv_0_35" --no-default-features`
-or 
+
+or
+
 `--features="mpv_0_34" --no-default-features`
+
 within `cargo build`, `cargo run`, or `cargo install` commands.
-MPV packages support may be dropped in future releases
+
+MPV support may be dropped in future releases.
 
 # Usage
 `tplay <media> [options]`
