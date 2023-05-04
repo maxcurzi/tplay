@@ -26,6 +26,7 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
       - [Other Distros](#other-distros)
       - [Install Using Cargo](#install-using-cargo)
     - [For developers](#for-developers)
+    - [Feature flags](#feature-flags)
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
@@ -74,14 +75,16 @@ These instructions will get you a copy of the project up and running on your loc
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
-[OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv), [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) [ffmpeg](https://ffmpeg.org/download.html)
-They are  simply installed on linux with your package manager. See [below](#prerequisites-installation-on-linux) for more details.
+- [OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv)
+- [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
+- [ffmpeg](https://ffmpeg.org/download.html)
+- Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
+- Optional dependency for audio playback via MPV: [MPV](https://mpv.io/installation/)
 
- Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
- Optional dependency for audio playback via MPV: [MPV](https://mpv.io/installation/)
+They can be simply installed on linux with your package manager. See [below](#prerequisites-installation-on-linux) for more details.
 
 ## Prerequisites Installation on Linux
-If you're on Linux, you can install all dependencies with your package manager. First install Rust:
+If you're on Linux (Ubuntu), you can install all dependencies with your package manager. First install Rust:
 
 ```bash
 sudo apt install curl
@@ -91,35 +94,20 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install `tplay`'s prerequisite dependencies:
 
 ```bash
-sudo apt install libopencv-dev clang libclang-dev libmpv1 libmpv-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev
+sudo apt install libopencv-dev clang libclang-dev ffmpeg libasound2-dev
+# Optionally install yt-dlp if you want to play YouTube videos
+python -m pip install yt-dlp
 ```
 
 ## Prerequisites installation on Windows
-**Installing all prerequisited on Windows is NOT RECOMMENDED as it's a lengthy process prone to errors. I leave a partial description that should work up until crate version 0.2.1**
-
-**If you are on Windows, use WSL (Windows Subsystem for Linux) and follow the [Linux instructions](#prerequisites-installation-on-linux)**
-
--- Old instructions for Windows (up until crate version 0.2.1) --
-- Download OpenCV prebuilt binaries (I used this [one](https://sourceforge.net/projects/opencvlibrary/)) and it was 4.6.0 at the time of writing.
-- Open the package and extract the `opencv` folder to `C:\opencv` or any other location you prefer.
-- Set the following environment variables (update the paths if you extracted the package to a different location):
-  - OPENCV_INCLUDE_PATHS = `C:\opencv\build\include`
-  - OPENCV_LINK_LIBS = `opencv_world460` (or whatever version you have, for OpenCV 4.7.0 you want `opencv_world470`)
-  - OPENCV_LINK_PATHS = `C:\opencv\build\x64\vc15\lib`
-  - Also add this to your PATH variable : `C:\opencv\build\x64\vc15\bin`
-
-- Install [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0) from binary, you'll likely want to use the 64-bit version on a modern computer.
-  - Add this to your PATH variable (or whatever corresponding directory you have on your computer): `C:\Program Files\LLVM\bin`
-- Install [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation) from binary, you'll likely want to use the 64-bit version on a modern computer.
-  - Add this to your PATH variable (or whatever corresponding directory you have on your computer): `C:\Program Files\yt-dlp\bin`
+**Installing all prerequisited on Windows is NOT RECOMMENDED as it's a lengthy process prone to errors, performance is also very poor. Use WSL and follow the [Linux instructions](#prerequisites-installation-on-linux)**
 
 # Installation
 
 ## For users
-
 ### Arch Linux 
 
-You can install it on arch linux using the [aur](https://aur.archlinux.org/packages/tplay-git) by running the following commands:
+You can install it on Arch Linux using [aur](https://aur.archlinux.org/packages/tplay-git) by running the following commands (using [paru](https://github.com/Morganamilo/paru)):
 
 ``` bash
 paru -S tplay-git
@@ -127,7 +115,7 @@ paru -S tplay-git
 
 ### Other Distros
 
-currently the package is not available on other linux distros. But with contribution and support it can be made available on other distros as well :).
+The package is not currently available on other Linux distros. With contribution and support it can be made available on other distros as well :).
 
 ### Install Using Cargo
 
@@ -159,14 +147,15 @@ cargo test
 
 # Run the project (use --release for faster performance)
 cargo run --release -- <media> [options]
-
-# By default the audio backend uses the rodio crate. If you have issue and want to try using the
-# mpv player as backend, then try the following:
-cargo run --release --features="mpv_0_35" --no-default-features -- <media> [options]
-# or (for mpv 0.34)
-cargo run --release --features="mpv_0_34" --no-default-features -- <media> [options]
-# MPV support may be dropped in future releases
 ```
+
+## Feature flags
+By default the crate uses [rodio](https://crates.io/crates/rodio) for audio playback. If you wish to use MPV (libmpv1 libmpv1-dev) as a audio playback backend, you can build/install the crate with:
+`--features="mpv_0_35" --no-default-features`
+or 
+`--features="mpv_0_34" --no-default-features`
+within `cargo build`, `cargo run`, or `cargo install` commands.
+MPV packages support may be dropped in future releases
 
 # Usage
 `tplay <media> [options]`
@@ -174,7 +163,7 @@ cargo run --release --features="mpv_0_34" --no-default-features -- <media> [opti
 | Argument | Description |
 |--------|-------------|
 | `media` | Name of the file or stream to be processed (required). |
-| `-f`, `--fps` | Maximum frames per second for the output (default: 60). |
+| `-f`, `--fps` | Forces a specific frame rate (--fps 23.976). |
 | `-c`, `--char-map` | Custom lookup character table to use for the output (default: ` .:-=+*#%@`). |
 | `-g`, `--gray` | Start in grayscale mode |
 | `-w`, `--w-mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
@@ -200,7 +189,7 @@ tplay ./video.mp4
 tplay https://www.youtube.com/watch?v=dQw4w9WgXcQ
 
 # Example: remote video (Other)
-tplay http://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4
+tplay https://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4
 
 # Example: YouTube video, with different char maps
 tplay https://www.youtube.com/watch?v=fShlVhCfHig --char-map " ░▒▓█"
@@ -213,16 +202,15 @@ tplay /dev/video0
 ```
 
 # Playback commands
-- `0-9` - change character map
+- `0-9` - change character map (with0 0
 - `space` - toggle pause/unpause
 - `g` - toggle grayscale/color
 - `m` - toggle mute/unmute
 - `q` - quit
 
 # Known Issues
-- Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) which has great performance on all operative systems I tested tplay on (Linux, Windows).
-- Media playback is cpu-intensive. To improve performance, try lowering the `fps` value, increase font size, reduce the terminal window size, or open with the `--allow-frame-skip` flag.
-- If you get this error: `panicked at 'Failed to init MPV builder: VersionMismatch { linked: 65644, loaded: 131072 }'` see [this issue](https://github.com/maxcurzi/tplay/issues/3) for a workaround.
+- Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) for great performance.
+- Media playback is CPU-intensive. To improve performance, increasing font size, reduce the terminal window size, or run with the `-a` / `--allow-frame-skip` flag.
 
 # Alternatives
 This is my ASCII media player: _there are many like it, but this one is mine._
@@ -249,7 +237,7 @@ Mostly did it for fun while learning Rust. I also wanted to see if it was possib
 
 # Credits
 
-We would like to thank the following people for their contributions and support:
+Thanks to the following people for their contributions and support:
 
 <a href="https://github.com/maxcurzi/tplay/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=maxcurzi/tplay" />
