@@ -9,6 +9,15 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Aur](https://img.shields.io/aur/maintainer/tplay-git)](https://aur.archlinux.org/packages/tplay-git)
 [![Aur](https://img.shields.io/aur/version/tplay-git)](https://aur.archlinux.org/packages/tplay-git)
+[![Maintainance](https://img.shields.io/maintenance/yes/2023)](https://github.com/maxcurzi/tplay/pulse)
+
+<a href=""
+    ><img
+      alt="Maintenance"
+      src="https://img.shields.io/maintenance/yes/2023?style=flat-square"
+    />
+  </a>
+
 
 View images, videos (files or YouTube links), webcam, etc directly in the terminal as ASCII. All images you see [below](#features) are just made by characters on the terminal command line, drawn really fast.
 
