@@ -8,7 +8,6 @@
 [![Crates.io](https://img.shields.io/crates/d/tplay)](https://crates.io/crates/tplay)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Aur](https://img.shields.io/aur/version/tplay-git)](https://aur.archlinux.org/packages/tplay-git)
-[![Maintainance](https://img.shields.io/maintenance/yes/2023)](https://github.com/maxcurzi/tplay/pulse)
 
 <a href=""
     ><img
