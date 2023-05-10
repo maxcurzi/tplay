@@ -7,31 +7,37 @@
 [![Crates.io](https://img.shields.io/crates/v/tplay)](https://crates.io/crates/tplay)
 [![Crates.io](https://img.shields.io/crates/d/tplay)](https://crates.io/crates/tplay)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Aur](https://img.shields.io/aur/version/tplay-git)](https://aur.archlinux.org/packages/tplay-git)
 
 View images, videos (files or YouTube links), webcam, etc directly in the terminal as ASCII. All images you see [below](#features) are just made by characters on the terminal command line, drawn really fast.
 
-# Table of Contents
+<details>
+  <summary><b>Table of Contents</b></summary>
+  <p>
 
 - [Terminal Media Player](#terminal-media-player)
-- [Table of Contents](#table-of-contents)
-  - [Who is it for?](#who-is-it-for)
-  - [Features](#features)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-    - [Linux](#prerequisites-installation-on-linux)
-    - [Windows](#prerequisites-installation-on-windows)
-  - [Installation](#installation)
-    - [For users](#for-users)
-      - [Arch Linux](#arch-linux)
-      - [Other Distros](#other-distros)
-      - [Install Using Cargo](#install-using-cargo)
-    - [For developers](#for-developers)
-    - [Feature flags](#feature-flags)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-- [Why](#why)
-- [Credits](#credits)
+- [Table of Contents](#table-of-contents-)
+  - [Who is it for?](#who-is-it-for-)
+  - [Features](#features-)
+- [Getting Started](#getting-started-)
+  - [Prerequisites](#prerequisites-)
+    - [Linux](#prerequisites-installation-on-linux-)
+    - [Windows](#prerequisites-installation-on-windows-)
+  - [Installation](#installation-)
+    - [For users](#for-users-)
+      - [Arch Linux](#arch-linux-)
+      - [Other Distros](#other-distros-)
+      - [Install Using Cargo](#install-using-cargo-)
+    - [For developers](#for-developers-)
+    - [Feature flags](#feature-flags-)
+- [Usage](#usage-)
+- [Contributing](#contributing-)
+- [License](#license-)
+- [Why](#why-)
+- [Credits](#credits-)
+
+  </p>
+</details>
 
 # Who is it for?
 - You _really_ don't like graphical applications or are working on a computer without graphical capabilities.
