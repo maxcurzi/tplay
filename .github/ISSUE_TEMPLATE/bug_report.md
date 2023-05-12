@@ -2,8 +2,8 @@
 name: Bug report
 about: Create a report to help us improve
 title: "[BUG]"
-labels: ''
-assignees: ''
+labels: bug
+assignees: maxcurzi
 
 ---
 
@@ -24,10 +24,11 @@ If applicable, add screenshots to help explain your problem.
 
 **Desktop (please complete the following information):**
  - OS: [e.g. 22.04.1-Ubuntu]
- - `tplay  --version`
+- `tplay  --version`
 - `yt-dlp --version`
 - `mpv --version`
 - `rustc --version`
+- `pkg-config --modversion opencv`
 
 **Additional context**
 Add any other context about the problem here.
