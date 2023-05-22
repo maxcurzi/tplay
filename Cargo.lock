@@ -1066,12 +1066,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "maplit"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
-
-[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1364,12 +1358,11 @@ checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
 
 [[package]]
 name = "opencv"
-version = "0.80.0"
+version = "0.82.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38d4242fe6629d522430154cd3fc55ab611d27fef6b807d2bd4e64159706c779"
+checksum = "e53f8da5fbcabdcadc76b476454c574ea348cbc37a7ae5fb96dabebb124cf473"
 dependencies = [
  "cc",
- "clang",
  "dunce",
  "jobserver",
  "libc",
@@ -1384,14 +1377,13 @@ dependencies = [
 
 [[package]]
 name = "opencv-binding-generator"
-version = "0.60.0"
+version = "0.65.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a54dacbfd6f2e7630e33b4f15939e71e41f0145e0cd8eb04b1967d55f6cb4153"
+checksum = "b4a3f509dbff59446a1fa91174352b74bd490bcf47ebe51e5d1456a3c960a9f2"
 dependencies = [
  "clang",
  "clang-sys",
  "dunce",
- "maplit",
  "once_cell",
  "percent-encoding",
  "regex",
@@ -2077,7 +2069,7 @@ checksum = "b6bc1c9ce2b5135ac7f93c72918fc37feb872bdc6a5533a8b85eb4b86bfdae52"
 
 [[package]]
 name = "tplay"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "clap",
  "crossbeam-channel",

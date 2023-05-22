@@ -1,6 +1,6 @@
 [package]
 name = "tplay"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 authors = ["Max Curzi <massimiliano.curzi@gmail.com>"]
 description = "A media player that visualizes images and videos as ASCII art directly in the terminal (with sound)."
@@ -31,7 +31,11 @@ clap = { version = "4.2.1", features = ["derive"] }
 crossterm = "0.26.1"
 gif = "0.12.0"
 image = "0.24.6"
-opencv = { version = "0.82", features = ["videoio", "imgproc", "clang-runtime"] }
+opencv = { version = "0.82", features = [
+    "videoio",
+    "imgproc",
+    "clang-runtime",
+] }
 thiserror = "1.0.40"
 fast_image_resize = "2.7.0"
 youtube_dl = "0.8.0"
@@ -42,9 +46,9 @@ ffmpeg-next = "6.0.0"
 crossbeam-channel = "0.5.8"
 num = "0.4.0"
 either = "1.8.1"
-libmpv = { version = "2.0.1", optional = true }              # MPV 0.34
+libmpv = { version = "2.0.1", optional = true } # MPV 0.34
 libmpv-sirno = { version = "2.0.2-fork.1", optional = true } # Temporary fix for MPV 0.35 (and probably later)
-rodio = { version = "0.17.1", optional = true }              # Audio playback alternative to mpv
+rodio = { version = "0.17.1", optional = true } # Audio playback alternative to mpv
 
 [dev-dependencies]
 reqwest = { version = "0.11.6", features = ["blocking"] }
