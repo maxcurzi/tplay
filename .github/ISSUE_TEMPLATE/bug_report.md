@@ -28,7 +28,8 @@ If applicable, add screenshots to help explain your problem.
 - `yt-dlp --version`
 - `mpv --version`
 - `rustc --version`
-- `pkg-config --modversion opencv`
+- `pkg-config --modversion opencv4`
+- `ffmpeg -version`
 
 **Additional context**
 Add any other context about the problem here.
