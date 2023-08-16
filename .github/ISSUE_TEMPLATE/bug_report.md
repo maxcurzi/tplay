@@ -24,12 +24,12 @@ If applicable, add screenshots to help explain your problem.
 
 **Desktop (please complete the following information):**
  - OS: [e.g. 22.04.1-Ubuntu]
-- `tplay  --version`
-- `yt-dlp --version`
-- `mpv --version`
-- `rustc --version`
-- `pkg-config --modversion opencv4`
-- `ffmpeg -version`
+- `tplay  --version`: <paste output here>
+- `yt-dlp --version`: <paste output here>
+- `mpv --version`: <paste output here>
+- `rustc --version`: <paste output here>
+- `pkg-config --modversion opencv4`: <paste output here>
+- `ffmpeg -version`: <paste output here>
 
 **Additional context**
 Add any other context about the problem here.
