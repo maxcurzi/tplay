@@ -100,7 +100,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install `tplay`'s prerequisite dependencies:
 
 ```bash
-sudo apt install libssl-dev libopencv-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp
+sudo apt install libssl-dev libopencv-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp
 ```
 
 ## Prerequisites installation on Windows
