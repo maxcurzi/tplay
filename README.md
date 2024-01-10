@@ -83,7 +83,7 @@ Being a Rust crate, you will need to have Rust installed on your system. You can
 The following dependencies are also required:
 - [OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv) Tested with OpenCV 4. It may work with OpenCV 3.4 and above.
 - [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
-- [ffmpeg](https://ffmpeg.org/download.html) Currently supported FFmpeg versions: 3.4.x through 4.4.x.
+- [ffmpeg](https://ffmpeg.org/download.html) Currently supported FFmpeg 6.1
 - Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 - Optional dependency for audio playback via MPV: [MPV](https://mpv.io/installation/)
 
