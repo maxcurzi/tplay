@@ -39,7 +39,11 @@ impl RodioAudioPlayer {
         let player: rodio::Sink = stream_handle
             .play_once(buf)
             .map_err(|err| MyError::Audio(format!("Failed to start playback: {:?}", err)))?;
-        Ok(Self { player, _stream, content })
+        Ok(Self {
+            player,
+            _stream,
+            content,
+        })
     }
 }
 
@@ -73,7 +77,10 @@ impl AudioPlayerControls for RodioAudioPlayer {
         self.player.clear();
         let input = Cursor::new(self.content.clone());
         let input = rodio::decoder::Decoder::new(input).map_err(|err| {
-            MyError::Audio(format!("Could not set decoder on rewind content: {:?}", err))
+            MyError::Audio(format!(
+                "Could not set decoder on rewind content: {:?}",
+                err
+            ))
         })?;
         self.player.append(input);
         self.player.play();

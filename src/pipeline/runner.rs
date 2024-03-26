@@ -5,7 +5,10 @@
 //! playback state, and controlling the frame rate. It also handles commands for pausing/continuing,
 //! resizing, and changing character maps during playback.
 use super::{frames::FrameIterator, image_pipeline::ImagePipeline};
-use crate::{common::errors::MyError, msg::broker::Control as MediaControl, pipeline::char_maps::*, StringInfo};
+use crate::{
+    common::errors::MyError, msg::broker::Control as MediaControl, pipeline::char_maps::*,
+    StringInfo,
+};
 use crossbeam_channel::{select, Receiver, Sender};
 use image::DynamicImage;
 use std::{thread, time::Duration};
@@ -30,8 +33,6 @@ pub struct Runner {
     pipeline: ImagePipeline,
     /// The FrameIterator that handles iterating through frames.
     media: FrameIterator,
-    /// The target frames per second (frame rate) for the Runner.
-    fps: f64,
     /// The current playback state of the Runner.
     state: State,
     /// A channel for receiving processed frames as strings.
@@ -40,16 +41,22 @@ pub struct Runner {
     rx_controls: Receiver<Control>,
     /// A channel for sending control events to the media processing thread.
     tx_control: Sender<MediaControl>,
-    /// The width modifier (use 2 for emojis).
-    w_mod: u32,
-    /// Loops back to the first frame after iterating through frames.
-    loops: bool,
     /// A collection of character maps available for the image pipeline.
     char_maps: Vec<Vec<char>>,
     /// The last frame that was processed by the Runner.
     last_frame: Option<DynamicImage>,
+    /// Runner options
+    runner_options: RunnerOptions,
 }
 
+pub struct RunnerOptions {
+    /// The target frames per second (frame rate) for the Runner.
+    pub fps: f64,
+    /// The width modifier (use 2 for emojis).
+    pub w_mod: u32,
+    /// loop_playback back to the first frame after iterating through frames.
+    pub loop_playback: bool,
+}
 /// Enum representing the different control commands that can be sent to the Runner.
 #[derive(Debug, PartialEq)]
 pub enum Control {
@@ -82,16 +89,14 @@ impl Runner {
     /// * `rx_controls` - A channel for sending control commands to the Runner.
     /// * `tx_controls` - A channel for sending control events to the media processing thread.
     /// * `w_mod` - The width modifier (use 2 for emojis).
-    /// * `loops` - Flags whether the runner will loop round after processing all frames.
+    /// * `loop_playback` - Flags whether the runner will loop round after processing all frames.
     pub fn new(
         pipeline: ImagePipeline,
         media: FrameIterator,
-        fps: f64,
         tx_frames: Sender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
         tx_control: Sender<MediaControl>,
-        w_mod: u32,
-        loops: bool,
+        runner_options: RunnerOptions,
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_map.clone(),
@@ -105,19 +110,16 @@ impl Runner {
             BW_DOTTED.to_string().chars().collect(),
             BRAILLE.to_string().chars().collect(),
         ];
-
         Self {
             pipeline,
             media,
-            fps,
             state: State::Running,
             tx_frames,
             rx_controls,
             tx_control,
-            w_mod,
-            loops,
             char_maps,
             last_frame: None,
+            runner_options,
         }
     }
 
@@ -146,7 +148,7 @@ impl Runner {
                 }
                 let frame = self.get_current_frame();
 
-                if self.loops && frame.is_none() {
+                if self.runner_options.loop_playback && frame.is_none() {
                     self.send_control(MediaControl::Replay)?;
                 }
 
@@ -249,9 +251,10 @@ impl Runner {
     /// * `width` - The new target width.
     /// * `height` - The new target height.
     fn resize_pipeline(&mut self, width: u16, height: u16) {
-        let _ = self
-            .pipeline
-            .set_target_resolution((width / self.w_mod as u16).into(), height.into());
+        let _ = self.pipeline.set_target_resolution(
+            (width / self.runner_options.w_mod as u16).into(),
+            height.into(),
+        );
     }
 
     /// Sets the character map for the image pipeline based on the provided index.
@@ -297,7 +300,8 @@ impl Runner {
     /// A tuple containing a boolean indicating whether the next frame should be sent, and the
     /// number of frames to skip if we are behind schedule.
     fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> (bool, usize) {
-        let target_frame_duration = Duration::from_nanos((1_000_000_000_f64 / self.fps) as u64);
+        let target_frame_duration =
+            Duration::from_nanos((1_000_000_000_f64 / self.runner_options.fps) as u64);
         let elapsed_time = time_count.elapsed();
 
         if elapsed_time >= target_frame_duration {
@@ -340,9 +344,13 @@ impl Runner {
     ///
     /// Returns an error if there is an issue with send.
     fn send_control(&self, control: MediaControl) -> Result<(), MyError> {
-        self.tx_control
-            .send(control)
-            .map_err(|e| MyError::Audio(format!("{error}: {e:?}", error = "audio control feedback", e = e)))
+        self.tx_control.send(control).map_err(|e| {
+            MyError::Audio(format!(
+                "{error}: {e:?}",
+                error = "audio control feedback",
+                e = e
+            ))
+        })
     }
 
     /// Processes the current frame, if available, and returns the resulting ASCII string. If the
@@ -406,7 +414,7 @@ mod tests {
     #[test]
     fn test_time_to_send_next_frame() {
         let fps = 23.976;
-        let loops = false;
+        let loop_playback = false;
         let media_data = open_media(MEDIA_FILE.to_string()).unwrap();
         let media = media_data.frame_iter;
         let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
@@ -415,7 +423,18 @@ mod tests {
         let (_tx_controls_pipeline, rx_controls_pipeline) = unbounded::<PipelineControl>();
         let (tx_control, _rx_controls_media) = unbounded::<MediaControl>();
 
-        let runner = Runner::new(pipeline, media, fps, tx_frames, rx_controls_pipeline, tx_control, 1, loops);
+        let runner = Runner::new(
+            pipeline,
+            media,
+            tx_frames,
+            rx_controls_pipeline,
+            tx_control,
+            RunnerOptions {
+                fps,
+                w_mod: 1,
+                loop_playback,
+            },
+        );
 
         let mut time_count = std::time::Instant::now();
 
