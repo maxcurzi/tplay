@@ -15,6 +15,8 @@ use crossbeam_channel::{select, Receiver, Sender};
 pub enum Control {
     /// Command to toggle between pause and continue playback.
     PauseContinue,
+    /// Replay the sources
+    Replay,
     /// Command to stop the playback and exit the Runner.
     Exit,
     /// Command to toggle between mute and unmute.
@@ -93,6 +95,14 @@ impl MessageBroker {
                             }
                             if let Some(tx) = &self.tx_channel_audio {
                                 let _ = tx.send(AudioControl::PauseContinue);
+                            }
+                        }
+                        Ok(BrokerControl::Replay) => {
+                            if let Some(tx) = &self.tx_channel_pipeline {
+                                let _ = tx.send(PipelineControl::Replay);
+                            }
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::Replay);
                             }
                         }
                         Ok(BrokerControl::Resize(width, height)) => {

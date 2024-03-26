@@ -70,9 +70,12 @@ impl Iterator for FrameIterator {
                 ref frames,
                 ref mut current_frame,
             } => {
-                let frame = frames.get(*current_frame).cloned();
-                *current_frame = (*current_frame + 1) % frames.len();
-                frame
+                if *current_frame == frames.len() - 1 {
+                    None
+                } else {
+                    *current_frame += 1;
+                    frames.get(*current_frame).cloned()
+                }
             }
         }
     }
@@ -106,6 +109,23 @@ impl FrameIterator {
                 frames,
             } => {
                 *current_frame = (*current_frame + n) % frames.len();
+            }
+        }
+    }
+
+    pub fn reset(&mut self) {
+        match self {
+            FrameIterator::Image(_) => {
+                // For a single image, reset is a no-op, since there's only one frame
+            }
+            FrameIterator::Video(ref mut video) => {
+                let _ = video.set(opencv::videoio::CAP_PROP_POS_AVI_RATIO, 0.0);
+            }
+            FrameIterator::AnimatedGif {
+                ref mut current_frame,
+                ..
+            } => {
+                *current_frame = 0;
             }
         }
     }

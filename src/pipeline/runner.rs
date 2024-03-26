@@ -5,7 +5,7 @@
 //! playback state, and controlling the frame rate. It also handles commands for pausing/continuing,
 //! resizing, and changing character maps during playback.
 use super::{frames::FrameIterator, image_pipeline::ImagePipeline};
-use crate::{common::errors::MyError, pipeline::char_maps::*, StringInfo};
+use crate::{common::errors::MyError, msg::broker::Control as MediaControl, pipeline::char_maps::*, StringInfo};
 use crossbeam_channel::{select, Receiver, Sender};
 use image::DynamicImage;
 use std::{thread, time::Duration};
@@ -38,8 +38,12 @@ pub struct Runner {
     tx_frames: Sender<Option<StringInfo>>,
     /// A channel for sending control commands to the Runner.
     rx_controls: Receiver<Control>,
+    /// A channel for sending control events to the media processing thread.
+    tx_control: Sender<MediaControl>,
     /// The width modifier (use 2 for emojis).
     w_mod: u32,
+    /// Loops back to the first frame after iterating through frames.
+    loops: bool,
     /// A collection of character maps available for the image pipeline.
     char_maps: Vec<Vec<char>>,
     /// The last frame that was processed by the Runner.
@@ -51,6 +55,8 @@ pub struct Runner {
 pub enum Control {
     /// Command to toggle between pause and continue playback.
     PauseContinue,
+    /// Replay the image pipeline
+    Replay,
     /// Command to stop the playback and exit the Runner.
     Exit,
     /// Command to set the character map used by the image pipeline.
@@ -74,14 +80,18 @@ impl Runner {
     /// * `fps` - The target frames per second (frame rate) for the Runner.
     /// * `tx_frames` - A channel for receiving processed frames as strings.
     /// * `rx_controls` - A channel for sending control commands to the Runner.
+    /// * `tx_controls` - A channel for sending control events to the media processing thread.
     /// * `w_mod` - The width modifier (use 2 for emojis).
+    /// * `loops` - Flags whether the runner will loop round after processing all frames.
     pub fn new(
         pipeline: ImagePipeline,
         media: FrameIterator,
         fps: f64,
         tx_frames: Sender<Option<StringInfo>>,
         rx_controls: Receiver<Control>,
+        tx_control: Sender<MediaControl>,
         w_mod: u32,
+        loops: bool,
     ) -> Self {
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_map.clone(),
@@ -103,7 +113,9 @@ impl Runner {
             state: State::Running,
             tx_frames,
             rx_controls,
+            tx_control,
             w_mod,
+            loops,
             char_maps,
             last_frame: None,
         }
@@ -133,6 +145,10 @@ impl Runner {
                     self.media.skip_frames(frames_to_skip);
                 }
                 let frame = self.get_current_frame();
+
+                if self.loops && frame.is_none() {
+                    self.send_control(MediaControl::Replay)?;
+                }
 
                 // Check if terminal is ready for the next frame
                 select! {
@@ -204,6 +220,9 @@ impl Runner {
                 Control::Exit => self.state = State::Stopped,
                 Control::Resize(width, height) => {
                     self.resize_pipeline(width, height);
+                }
+                Control::Replay => {
+                    self.replay_pipeline();
                 }
                 Control::SetCharMap(char_map) => {
                     self.set_char_map(char_map);
@@ -303,6 +322,29 @@ impl Runner {
         }
     }
 
+    /// Replays the pipeline
+    ///
+    /// # Returns
+    ///
+    fn replay_pipeline(&mut self) {
+        self.media.reset();
+    }
+
+    /// Sends a control command to the media processing thread.
+    ///
+    /// # Arguments
+    ///
+    /// * `control` - The control command to send.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with send.
+    fn send_control(&self, control: MediaControl) -> Result<(), MyError> {
+        self.tx_control
+            .send(control)
+            .map_err(|e| MyError::Audio(format!("{error}: {e:?}", error = "audio control feedback", e = e)))
+    }
+
     /// Processes the current frame, if available, and returns the resulting ASCII string. If the
     /// frame is not available or doesn't need to be processed, it returns None.
     ///
@@ -364,14 +406,16 @@ mod tests {
     #[test]
     fn test_time_to_send_next_frame() {
         let fps = 23.976;
+        let loops = false;
         let media_data = open_media(MEDIA_FILE.to_string()).unwrap();
         let media = media_data.frame_iter;
         let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
 
         let (tx_frames, _rx_frames) = bounded::<Option<StringInfo>>(1);
         let (_tx_controls_pipeline, rx_controls_pipeline) = unbounded::<PipelineControl>();
+        let (tx_control, _rx_controls_media) = unbounded::<MediaControl>();
 
-        let runner = Runner::new(pipeline, media, fps, tx_frames, rx_controls_pipeline, 1);
+        let runner = Runner::new(pipeline, media, fps, tx_frames, rx_controls_pipeline, tx_control, 1, loops);
 
         let mut time_count = std::time::Instant::now();
 

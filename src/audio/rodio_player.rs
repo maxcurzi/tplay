@@ -2,7 +2,7 @@
 use crate::audio::{player::AudioPlayerControls, utils::extract_audio};
 use crate::common::errors::MyError;
 use rodio;
-use std::io::BufReader;
+use std::io::{BufReader, Cursor, Read, Seek};
 
 /// The AudioPlayer struct handles audio playback using the rodio backend.
 pub struct RodioAudioPlayer {
@@ -10,6 +10,8 @@ pub struct RodioAudioPlayer {
     player: rodio::Sink,
     /// Keep OutputStream alive
     _stream: rodio::OutputStream,
+    /// Store content for rewind/replay
+    content: Vec<u8>,
 }
 
 impl RodioAudioPlayer {
@@ -30,10 +32,14 @@ impl RodioAudioPlayer {
         // Play audio with rodio
         let file = std::fs::File::open(audio_track.path())
             .map_err(|err| MyError::Audio(format!("Failed to open audio file: {:?}", err)))?;
+        let mut buf = BufReader::new(file);
+        let mut content = Vec::new();
+        buf.by_ref().read_to_end(&mut content)?;
+        buf.rewind()?;
         let player: rodio::Sink = stream_handle
-            .play_once(BufReader::new(file))
+            .play_once(buf)
             .map_err(|err| MyError::Audio(format!("Failed to start playback: {:?}", err)))?;
-        Ok(Self { player, _stream })
+        Ok(Self { player, _stream, content })
     }
 }
 
@@ -54,6 +60,22 @@ impl AudioPlayerControls for RodioAudioPlayer {
     ///
     /// A `Result` indicating success or an `MyError::Audio` error.
     fn resume(&mut self) -> Result<(), MyError> {
+        self.player.play();
+        Ok(())
+    }
+
+    /// Rewinds the audio playback.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    fn rewind(&mut self) -> Result<(), MyError> {
+        self.player.clear();
+        let input = Cursor::new(self.content.clone());
+        let input = rodio::decoder::Decoder::new(input).map_err(|err| {
+            MyError::Audio(format!("Could not set decoder on rewind content: {:?}", err))
+        })?;
+        self.player.append(input);
         self.player.play();
         Ok(())
     }
