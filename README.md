@@ -55,7 +55,7 @@ This crate is still in early development, but it already has a lot of features. 
 - [x] RGB Colors (on terminals that support RGB colors)
 - [x] Play sounds
 - [x] Spark joy
-- [ ] Full media controls (forward, backwards, loop, etc)
+- [ ] Full media controls (forward, backwards, etc)
 - [ ] Subtitles
 - [ ] Replace a fully-fledged media player
 
@@ -178,6 +178,7 @@ MPV support may be dropped in future releases.
 | `-w`, `--w-mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
 | `-a`, `--allow-frame-skip` | Experimental frame skip flag. Try to use it if the playback is too slow. |
 | `-n`, `--new-lines` | Experimental flag. Adds newline and carriage return `\n\r` at the end of each line (except the last). Terminals wrap around and don't need new lines, but if you want to copy-paste the text outside the terminal you may want them. The output would be a single long string otherwise. Uses more CPU. |
+| `-l`, `--loop-playback` | Loop video/gif forever (default: do not loop - play once) |
 
 Substitute `tplay` with `cargo run --release --` if you plan to run from source.
 
