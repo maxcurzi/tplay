@@ -36,6 +36,8 @@ pub struct Runner {
 pub enum Control {
     /// Command to toggle between pause and continue playback.
     PauseContinue,
+    /// Replay the audio
+    Replay,
     /// Command to toggle between mute and unmute.
     MuteUnmute,
     /// Command to stop the playback and exit the Runner.
@@ -70,17 +72,18 @@ impl Runner {
                 recv(self.rx_controls) -> msg => {
                     match msg.unwrap() {
                         Control::PauseContinue => {
-
                             self.state = match self.state {
                                 State::Running => State::Paused,
                                 State::Paused => State::Running,
                                 State::Stopped => State::Stopped,
                             };
                             self.audio_player.player.toggle_play()?;
-
                         },
                         Control::MuteUnmute => {
                             self.audio_player.player.toggle_mute()?;
+                        },
+                        Control::Replay => {
+                            self.audio_player.player.rewind()?;
                         },
                         Control::Exit => {
                             self.state = State::Stopped;

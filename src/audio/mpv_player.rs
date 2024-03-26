@@ -130,4 +130,11 @@ impl AudioPlayerControls for MpvAudioPlayer {
             .command("stop", &["false"])
             .map_err(|err| MyError::Audio(format!("{:?}", err)))
     }
+
+    fn rewind(&mut self) -> Result<(), MyError> {
+        // TODO
+        Err(MyError::Audio(
+            "Rewind feature not implemented for MPV audio player".to_string(),
+        ))
+    }
 }

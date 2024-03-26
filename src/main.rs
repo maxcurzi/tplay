@@ -17,7 +17,7 @@ use either::Either;
 use msg::broker::Control as MediaControl;
 use pipeline::{
     char_maps::CHARS1, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
-    runner::Control as PipelineControl,
+    runner::Control as PipelineControl, runner::RunnerOptions,
 };
 use std::thread;
 use terminal::Terminal;
@@ -34,6 +34,9 @@ struct Args {
     /// Force a user-specified FPS
     #[arg(short, long)]
     fps: Option<String>,
+    /// Loop playing of video/gif
+    #[arg(short, long, default_value = "false")]
+    loop_playback: bool,
     /// Custom lookup char table
     #[arg(short, long, default_value = CHARS1)]
     char_map: String,
@@ -112,6 +115,7 @@ impl MediaProcessor {
         fps: Option<f64>,
         tx_frames: crossbeam_channel::Sender<Option<StringInfo>>,
         rx_controls_pipeline: crossbeam_channel::Receiver<PipelineControl>,
+        tx_controls: crossbeam_channel::Sender<MediaControl>,
     ) -> Result<(), MyError> {
         let barrier = Arc::clone(&self.barrier);
         let mut use_fps = DEFAULT_FPS;
@@ -125,16 +129,21 @@ impl MediaProcessor {
         }
         let cmaps = args.char_map.chars().collect();
         let w_mod = args.w_mod;
+        let loop_playback = args.loop_playback;
         let allow_frame_skip = args.allow_frame_skip;
         let new_lines = args.new_lines;
         let handle = thread::spawn(move || -> Result<(), MyError> {
             let mut runner = pipeline::runner::Runner::new(
                 ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps, new_lines),
                 media,
-                use_fps,
                 tx_frames,
                 rx_controls_pipeline,
-                w_mod,
+                tx_controls,
+                RunnerOptions {
+                    fps: use_fps,
+                    w_mod,
+                    loop_playback,
+                },
             );
             runner.run(barrier, allow_frame_skip)
         });
@@ -196,10 +205,17 @@ fn main() -> Result<(), MyError> {
         args.input.clone(),
         args.gray,
         rx_frames,
-        tx_controls,
+        tx_controls.clone(),
     )?;
 
-    media_processor.launch_pipeline_thread(&args, media, fps, tx_frames, rx_controls_pipeline)?;
+    media_processor.launch_pipeline_thread(
+        &args,
+        media,
+        fps,
+        tx_frames,
+        rx_controls_pipeline,
+        tx_controls,
+    )?;
 
     if let Some(audio) = &audio {
         let title = args.input.clone();
