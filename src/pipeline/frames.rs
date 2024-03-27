@@ -210,7 +210,7 @@ fn open_media_from_path(path: Either<&Path, String>) -> Result<MediaData, MyErro
     match ext {
         // Image extensions
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
-        | Some("jpeg") => Ok(MediaData {
+        | Some("jpeg") | Some("webp") => Ok(MediaData {
             frame_iter: open_image(path)?,
             fps: None,
             audio_path: None,
