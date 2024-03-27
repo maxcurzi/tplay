@@ -12,8 +12,8 @@ use either::Either;
 use gif;
 use image::{io::Reader as ImageReader, DynamicImage};
 use opencv::{prelude::*, videoio::VideoCapture};
-use std::{fs::File, path::Path};
-use tempfile::TempPath;
+use std::{fs::File, io::Write, path::Path};
+use tempfile::{tempdir, TempPath};
 use url::Url;
 
 /// An iterator over the frames of a media file.
@@ -133,10 +133,9 @@ impl FrameIterator {
 
 /// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
 ///
-/// This function takes a path to a media file and identifies its type based on the file extension.
+/// This function takes a path or downloadable URL to a media file and identifies its type based on the file extension.
 /// It supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG), videos (MP4, AVI, WEBM, MKV, MOV, FLV,
-/// OGG), and animated GIFs. If the provided path is a URL pointing to a YouTube video, the video
-/// will be downloaded and opened.
+/// OGG), and animated GIFs. If the URL pointing to a YouTube video, the content will be handled in a custom manner.
 ///
 /// # Arguments
 ///
@@ -147,16 +146,12 @@ impl FrameIterator {
 /// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
 /// `MyError` if an error occurs.
 pub fn open_media(path: String) -> Result<MediaData, MyError> {
-    let p = Path::new(&path);
-    let x = Path::new(p).to_owned();
-    let path = x.as_path(); //.as_ref();
-    let ext = path.extension().and_then(std::ffi::OsStr::to_str);
-
-    // Check if the path is a URL and has a YouTube domain
-    if let Ok(url) = Url::parse(path.to_str().unwrap_or("")) {
+    // Check if the path is a URL
+    if let Ok(url) = Url::parse(path.as_str()) {
         if let Some(domain) = url.domain() {
+            // handle YouTube domains specially
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
-                let video = youtube::download_video(path.to_str().unwrap_or(""))?;
+                let video = youtube::download_video(path.as_str())?;
                 let fps = extract_fps(video.as_os_str().to_str().unwrap_or(""));
                 let video_open = open_video(&video)?;
                 return Ok(MediaData {
@@ -164,17 +159,54 @@ pub fn open_media(path: String) -> Result<MediaData, MyError> {
                     fps,
                     audio_path: Some(Either::Left(video)),
                 });
+            } else {
+                // otherwise download the url to a temp file and open media from there.
+                let tmp = tempdir()?;
+                // use the last segment of the url path (for the ext) or a random name otherwise with no extension
+                let name = url.path_segments().and_then(|s| s.last()).unwrap_or("unknown_media");
+                let p = tmp.path().join(name);
+                download_url_to_file(p.as_path(), url)?;
+                open_media_from_path(Either::Left(p.as_path()))
             }
+        } else {
+            open_media_from_path(Either::Right(path))
         }
+    } else {
+        open_media_from_path(Either::Right(path))
     }
+}
 
-    let fps = extract_fps(path.as_os_str().to_str().unwrap_or(""));
-    let audio = has_audio(path.as_os_str().to_str().unwrap_or(""))?;
+/// Opens the media file from a local path and returns a `FrameIterator` for iterating over its frames.
+///
+/// This function is called from open_media
+///
+/// # Arguments
+///
+/// * `path` - A reference to a path (str or Path format).
+///
+/// # Returns
+///
+/// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
+/// `MyError` if an error occurs.
+fn open_media_from_path(path: Either<&Path, String>) -> Result<MediaData, MyError> {
+    let (path, path_str) = match path {
+        Either::Right(ref path) => {
+            (Path::new(path.as_str()), path.to_owned())
+        }
+        Either::Left(path) => {
+            (path, path.as_os_str().to_str().unwrap_or("").to_owned())
+        }
+    };
+
+    let fps = extract_fps(&path_str);
+    let audio = has_audio(&path_str)?;
     let audio_track = if audio {
-        Some(Either::Right(path.to_str().unwrap_or("").to_string()))
+        Some(Either::Right(path_str))
     } else {
         None
     };
+
+    let ext = path.extension().and_then(std::ffi::OsStr::to_str);
     match ext {
         // Image extensions
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
@@ -228,6 +260,28 @@ fn capture_video_frame(video: &mut VideoCapture) -> Option<DynamicImage> {
     } else {
         None
     }
+}
+
+/// Writes the content downloaded from a url to a file.
+///
+//
+/// # Arguments
+///
+/// * `path` - A path to the file to be written
+/// * `url` - The url from which to download the file content
+///
+/// # Returns
+///
+/// A `Result`
+/// `MyError` if an error occurs.
+fn download_url_to_file(path: &Path, url: Url) -> Result<(), MyError> {
+    let tmp_file = File::create(path)?;
+    let mut tmp_file = std::io::BufWriter::new(tmp_file);
+    tmp_file.write_all(reqwest::blocking::get(url).and_then(|resp| resp.bytes()).map_err(|err| {
+        MyError::Application(format!("{error}: {err:?}", error = ERROR_DOWNLOADING_RESOURCE))
+    })?.as_ref()).map_err(|err| {
+        MyError::Application(format!("{error}: {err:?}", error = ERROR_OPENING_RESOURCE))
+    })
 }
 
 /// Opens the specified image file and returns a `FrameIterator`.
@@ -289,7 +343,7 @@ fn open_video(path: &Path) -> Result<FrameIterator, MyError> {
 /// `MyError` if an error occurs.
 fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
     let file = File::open(path)
-        .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_GIF)))?;
+        .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE)))?;
     let mut options = gif::DecodeOptions::new();
     options.set_color_output(gif::ColorOutput::RGBA);
     let mut decoder = options.read_info(file).map_err(|e| {
