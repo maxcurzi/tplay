@@ -47,8 +47,10 @@ impl From<opencv::Error> for MyError {
 pub const ERROR_DECODING_IMAGE: &str = "Error decoding image";
 /// Error message for issues related to opening a video.
 pub const ERROR_OPENING_VIDEO: &str = "Error opening video";
-/// Error message for issues related to opening a GIF.
-pub const ERROR_OPENING_GIF: &str = "Error opening GIF";
+/// Error message for issues related to downloading a resource.
+pub const ERROR_DOWNLOADING_RESOURCE: &str = "Error downloading resource";
+/// Error message for issues related to opening a resource.
+pub const ERROR_OPENING_RESOURCE: &str = "Error opening resource";
 /// Error message for issues related to reading a GIF header.
 pub const ERROR_READING_GIF_HEADER: &str = "Cannot read GIF header";
 /// Error message for issues related to parsing a digit.
