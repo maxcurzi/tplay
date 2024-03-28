@@ -71,11 +71,12 @@ impl Iterator for FrameIterator {
                 ref frames,
                 ref mut current_frame,
             } => {
-                if *current_frame == frames.len() - 1 {
+                if *current_frame == frames.len() {
                     None
                 } else {
+                    let frame = frames.get(*current_frame).cloned();
                     *current_frame += 1;
-                    frames.get(*current_frame).cloned()
+                    frame
                 }
             }
         }
