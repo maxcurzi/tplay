@@ -219,18 +219,24 @@ fn open_media_from_path(path_str: &str, path: &Path) -> Result<MediaData, MyErro
         }),
 
         // Gif
-        Some("gif") => Ok(MediaData {
-            frame_iter: open_gif(path)?,
-            fps: None,
-            audio_path: None,
-        }),
+        Some("gif") => {
+            let (frame_iter, fps) = open_gif(path)?;
+            Ok(MediaData {
+                frame_iter,
+                fps: Some(fps),
+                audio_path: None,
+            })
+        },
 
         // Webp
-        Some("webp") => Ok(MediaData {
-            frame_iter: open_webp(path)?,
-            fps: None,
-            audio_path: None,
-        }),
+        Some("webp") => {
+            let (frame_iter, fps) = open_webp(path)?;
+            Ok(MediaData {
+                frame_iter,
+                fps: Some(fps),
+                audio_path: None,
+            })
+        },
 
         // Unknown extension, try open as video
         _ => Ok(MediaData {
@@ -340,9 +346,9 @@ fn open_video(path: &Path) -> Result<FrameIterator, MyError> {
 ///
 /// # Returns
 ///
-/// A `Result` containing a `FrameIterator` if the animated GIF file is successfully opened, or a
+/// A `Result` containing a `FrameIterator` and fps if the animated GIF file is successfully opened, or a
 /// `MyError` if an error occurs.
-fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
+fn open_gif(path: &Path) -> Result<(FrameIterator, f64), MyError> {
     let file = File::open(path)
         .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE)))?;
     let mut options = gif::DecodeOptions::new();
@@ -351,9 +357,12 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
         MyError::Application(format!("{error}: {e:?}", error = ERROR_READING_GIF_HEADER))
     })?;
 
+    // delay is in units of 10ms, so we'll divide by 100.0, not 1000.0
+    let mut delay: u64 = 0;
     let mut frames = Vec::new();
     while let Ok(Some(frame)) = decoder.read_next_frame() {
         let buffer = frame.buffer.clone();
+        delay += frame.delay as u64;
         if let Some(image) = image::RgbaImage::from_raw(
             decoder.width() as u32,
             decoder.height() as u32,
@@ -365,10 +374,12 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
         }
     }
 
-    Ok(FrameIterator::AnimatedImage {
+    // fps is only an average across all frames, there is no per frame delay modelling
+    let fps = frames.len() as f64 / (delay.max(1) as f64 / 100.0);
+    Ok((FrameIterator::AnimatedImage {
         frames,
         current_frame: 0,
-    })
+    }, fps))
 }
 
 /// Opens the specified animated WEBP file and returns a `FrameIterator`.
@@ -382,14 +393,16 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
 ///
 /// # Returns
 ///
-/// A `Result` containing a `FrameIterator` if the animated WEBP file is successfully opened, or a
+/// A `Result` containing a `FrameIterator` and fps if the animated WEBP file is successfully opened, or a
 /// `MyError` if an error occurs.
-fn open_webp(path: &Path) -> Result<FrameIterator, MyError> {
+fn open_webp(path: &Path) -> Result<(FrameIterator, f64), MyError> {
     let mut file = File::open(path)
         .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE)))?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
     let mut frames = Vec::new();
+    let mut first_timestamp: i32 = i32::MAX;
+    let mut last_timestamp: i32 = i32::MIN;
     // this code is based on the code example here:
     // https://developers.google.com/speed/webp/docs/container-api#webpanimdecoder_api
     unsafe {
@@ -402,16 +415,18 @@ fn open_webp(path: &Path) -> Result<FrameIterator, MyError> {
         let dec = webp::WebPAnimDecoderNew(&webp::WebPData{bytes: buf.as_ptr(), size: buf.len()}, &options);
         let mut info = webp::WebPAnimInfo::default();
         webp::WebPAnimDecoderGetInfo(dec, &mut info);
-        let frame_sz = info.canvas_width as usize * info.canvas_height as usize;
+        let frame_sz = (info.canvas_width * info.canvas_height * 4) as usize;
         for _ in 0..info.loop_count {
             while webp::WebPAnimDecoderHasMoreFrames(dec) != 0 {
                 let mut buf: *mut u8 = std::ptr::null_mut();
                 let mut timestamp: i32 = 0;
                 webp::WebPAnimDecoderGetNext(dec, &mut buf, &mut timestamp);
+                first_timestamp = first_timestamp.min(timestamp);
+                last_timestamp = last_timestamp.max(timestamp);
                 if let Some(image) = image::RgbaImage::from_raw(
                     info.canvas_width,
                     info.canvas_height,
-                    std::slice::from_raw_parts(buf, frame_sz * 4).to_vec(),
+                    std::slice::from_raw_parts(buf, frame_sz).to_vec(),
                 ) {
                     frames.push(DynamicImage::ImageRgba8(image));
                 } else {
@@ -423,8 +438,10 @@ fn open_webp(path: &Path) -> Result<FrameIterator, MyError> {
         webp::WebPAnimDecoderDelete(dec);
     }
 
-    Ok(FrameIterator::AnimatedImage {
+    // fps is only an average across all frames, there is no per frame delay modelling
+    let fps = frames.len() as f64 / ((last_timestamp.saturating_sub(first_timestamp).max(1)) as f64 / 1000.0);
+    Ok((FrameIterator::AnimatedImage {
         frames,
         current_frame: 0,
-    })
+    }, fps))
 }
