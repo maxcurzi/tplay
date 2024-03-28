@@ -396,16 +396,16 @@ fn open_webp(path: &Path) -> Result<FrameIterator, MyError> {
         .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE)))?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
-    let mut options = webp::WebPAnimDecoderOptions{
-        color_mode: webp::WEBP_CSP_MODE::MODE_RGBA,
-        use_threads: 0,
-        padding: [0, 0, 0, 0, 0, 0, 0],
-    };
-    let mut info = webp::WebPAnimInfo::default();
     let mut frames = Vec::new();
     unsafe {
+        let mut options = webp::WebPAnimDecoderOptions{
+            color_mode: webp::WEBP_CSP_MODE::MODE_RGBA,
+            use_threads: 0,
+            padding: [0, 0, 0, 0, 0, 0, 0],
+        };
         webp::WebPAnimDecoderOptionsInit(&mut options);
         let dec = webp::WebPAnimDecoderNew(&webp::WebPData{bytes: buf.as_ptr(), size: buf.len()}, &options);
+        let mut info = webp::WebPAnimInfo::default();
         webp::WebPAnimDecoderGetInfo(dec, &mut info);
         let frame_sz = info.canvas_width as usize * info.canvas_height as usize;
         for _ in 0..info.loop_count {
