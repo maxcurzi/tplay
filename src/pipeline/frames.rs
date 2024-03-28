@@ -167,13 +167,13 @@ pub fn open_media(path: String) -> Result<MediaData, MyError> {
                 let name = url.path_segments().and_then(|s| s.last()).unwrap_or("unknown_media");
                 let p = tmp.path().join(name);
                 download_url_to_file(p.as_path(), url)?;
-                open_media_from_path(Either::Left(p.as_path()))
+                open_media_from_path(p.as_os_str().to_str().unwrap_or(""), p.as_path())
             }
         } else {
-            open_media_from_path(Either::Right(path))
+            open_media_from_path(path.as_str(), &Path::new(path.as_str()))
         }
     } else {
-        open_media_from_path(Either::Right(path))
+        open_media_from_path(path.as_str(), &Path::new(path.as_str()))
     }
 }
 
@@ -183,26 +183,18 @@ pub fn open_media(path: String) -> Result<MediaData, MyError> {
 ///
 /// # Arguments
 ///
-/// * `path` - A reference to a path (str or Path format).
+/// * `path_str` - A reference to the path str.
+/// * `path` - A reference to a corresponding Path structure.
 ///
 /// # Returns
 ///
 /// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
 /// `MyError` if an error occurs.
-fn open_media_from_path(path: Either<&Path, String>) -> Result<MediaData, MyError> {
-    let (path, path_str) = match path {
-        Either::Right(ref path) => {
-            (Path::new(path.as_str()), path.to_owned())
-        }
-        Either::Left(path) => {
-            (path, path.as_os_str().to_str().unwrap_or("").to_owned())
-        }
-    };
-
-    let fps = extract_fps(&path_str);
-    let audio = has_audio(&path_str)?;
+fn open_media_from_path(path_str: &str, path: &Path) -> Result<MediaData, MyError> {
+    let fps = extract_fps(path_str);
+    let audio = has_audio(path_str)?;
     let audio_track = if audio {
-        Some(Either::Right(path_str))
+        Some(Either::Right(path_str.to_owned()))
     } else {
         None
     };
