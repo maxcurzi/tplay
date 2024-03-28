@@ -12,14 +12,15 @@ use either::Either;
 use gif;
 use image::{io::Reader as ImageReader, DynamicImage};
 use opencv::{prelude::*, videoio::VideoCapture};
-use std::{fs::File, io::Write, path::Path};
+use std::{fs::File, io::{Read, Write}, path::Path};
 use tempfile::{tempdir, TempPath};
 use url::Url;
+use libwebp_sys as webp;
 
 /// An iterator over the frames of a media file.
 ///
 /// This enum represents an iterator for different types of media files, such as
-/// static images, videos, and animated GIFs.
+/// static images, videos, and animated GIFs/WEBPs.
 ///
 /// # Variants
 ///
@@ -31,7 +32,7 @@ use url::Url;
 pub enum FrameIterator {
     Image(Option<DynamicImage>),
     Video(VideoCapture),
-    AnimatedGif {
+    AnimatedImage {
         frames: Vec<DynamicImage>,
         current_frame: usize,
     },
@@ -66,7 +67,7 @@ impl Iterator for FrameIterator {
         match self {
             FrameIterator::Image(ref mut img) => img.take(),
             FrameIterator::Video(ref mut video) => capture_video_frame(video),
-            FrameIterator::AnimatedGif {
+            FrameIterator::AnimatedImage {
                 ref frames,
                 ref mut current_frame,
             } => {
@@ -104,7 +105,7 @@ impl FrameIterator {
                     }
                 }
             }
-            FrameIterator::AnimatedGif {
+            FrameIterator::AnimatedImage {
                 ref mut current_frame,
                 frames,
             } => {
@@ -121,7 +122,7 @@ impl FrameIterator {
             FrameIterator::Video(ref mut video) => {
                 let _ = video.set(opencv::videoio::CAP_PROP_POS_AVI_RATIO, 0.0);
             }
-            FrameIterator::AnimatedGif {
+            FrameIterator::AnimatedImage {
                 ref mut current_frame,
                 ..
             } => {
@@ -135,7 +136,7 @@ impl FrameIterator {
 ///
 /// This function takes a path or downloadable URL to a media file and identifies its type based on the file extension.
 /// It supports images (PNG, BMP, ICO, TIF, TIFF, JPG, JPEG), videos (MP4, AVI, WEBM, MKV, MOV, FLV,
-/// OGG), and animated GIFs. If the URL pointing to a YouTube video, the content will be handled in a custom manner.
+/// OGG), and animated GIFs/WEBPs. If the URL pointing to a YouTube video, the content will be handled in a custom manner.
 ///
 /// # Arguments
 ///
@@ -210,7 +211,7 @@ fn open_media_from_path(path: Either<&Path, String>) -> Result<MediaData, MyErro
     match ext {
         // Image extensions
         Some("png") | Some("bmp") | Some("ico") | Some("tif") | Some("tiff") | Some("jpg")
-        | Some("jpeg") | Some("webp") => Ok(MediaData {
+        | Some("jpeg") => Ok(MediaData {
             frame_iter: open_image(path)?,
             fps: None,
             audio_path: None,
@@ -227,6 +228,13 @@ fn open_media_from_path(path: Either<&Path, String>) -> Result<MediaData, MyErro
         // Gif
         Some("gif") => Ok(MediaData {
             frame_iter: open_gif(path)?,
+            fps: None,
+            audio_path: None,
+        }),
+
+        // Webp
+        Some("webp") => Ok(MediaData {
+            frame_iter: open_webp(path)?,
             fps: None,
             audio_path: None,
         }),
@@ -364,7 +372,64 @@ fn open_gif(path: &Path) -> Result<FrameIterator, MyError> {
         }
     }
 
-    Ok(FrameIterator::AnimatedGif {
+    Ok(FrameIterator::AnimatedImage {
+        frames,
+        current_frame: 0,
+    })
+}
+
+/// Opens the specified animated WEBP file and returns a `FrameIterator`.
+///
+/// This helper function opens an animated WEBP file and creates a `FrameIterator::AnimatedWebp`
+/// variant containing all the frames of the animation.
+///
+/// # Arguments
+///
+/// * `path` - A reference to the path of the animated WEBP file.
+///
+/// # Returns
+///
+/// A `Result` containing a `FrameIterator` if the animated WEBP file is successfully opened, or a
+/// `MyError` if an error occurs.
+fn open_webp(path: &Path) -> Result<FrameIterator, MyError> {
+    let mut file = File::open(path)
+        .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE)))?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf)?;
+    let mut options = webp::WebPAnimDecoderOptions{
+        color_mode: webp::WEBP_CSP_MODE::MODE_RGBA,
+        use_threads: 0,
+        padding: [0, 0, 0, 0, 0, 0, 0],
+    };
+    let mut info = webp::WebPAnimInfo::default();
+    let mut frames = Vec::new();
+    unsafe {
+        webp::WebPAnimDecoderOptionsInit(&mut options);
+        let dec = webp::WebPAnimDecoderNew(&webp::WebPData{bytes: buf.as_ptr(), size: buf.len()}, &options);
+        webp::WebPAnimDecoderGetInfo(dec, &mut info);
+        let frame_sz = info.canvas_width as usize * info.canvas_height as usize;
+        for _ in 0..info.loop_count {
+            while webp::WebPAnimDecoderHasMoreFrames(dec) != 0 {
+                let mut buf: *mut u8 = std::ptr::null_mut();
+                let mut timestamp: i32 = 0;
+                webp::WebPAnimDecoderGetNext(dec, &mut buf, &mut timestamp);
+            
+                if let Some(image) = image::RgbaImage::from_raw(
+                    info.canvas_width,
+                    info.canvas_height,
+                    std::slice::from_raw_parts(buf, frame_sz * 4).to_vec(),
+                ) {
+                    frames.push(DynamicImage::ImageRgba8(image));
+                } else {
+                    // eprintln!("Failed to decode frame");
+                }
+            }
+            webp::WebPAnimDecoderReset(dec);
+        }
+        webp::WebPAnimDecoderDelete(dec);
+    }
+
+    Ok(FrameIterator::AnimatedImage {
         frames,
         current_frame: 0,
     })

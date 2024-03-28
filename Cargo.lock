@@ -670,16 +670,6 @@ dependencies = [
 
 [[package]]
 name = "gif"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80792593675e051cf94a4b111980da2ba60d4a83e43e0048c5693baab3977045"
-dependencies = [
- "color_quant",
- "weezl",
-]
-
-[[package]]
-name = "gif"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fb2d69b19215e18bb912fa30f7ce15846e301408695e44e0ef719f1da9e19f2"
@@ -844,7 +834,7 @@ dependencies = [
  "byteorder",
  "color_quant",
  "exr",
- "gif 0.13.1",
+ "gif",
  "jpeg-decoder",
  "num-traits",
  "png",
@@ -1006,6 +996,16 @@ name = "libmpv-sys-sirno"
 version = "2.0.0-fork.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88adfe3a9f3ef1d69c87ce86930246cd80c86be098d5bfd2a7b05962ff1d3a50"
+
+[[package]]
+name = "libwebp-sys"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "829b6b604f31ed6d2bccbac841fe0788de93dbd87e4eb1ba2c4adfe8c012a838"
+dependencies = [
+ "cc",
+ "glob",
+]
 
 [[package]]
 name = "linux-raw-sys"
@@ -2035,10 +2035,11 @@ dependencies = [
  "either",
  "fast_image_resize",
  "ffmpeg-next",
- "gif 0.12.0",
+ "gif",
  "image",
  "libmpv",
  "libmpv-sirno",
+ "libwebp-sys",
  "num",
  "opencv",
  "reqwest",
