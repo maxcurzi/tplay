@@ -352,7 +352,9 @@ fn open_gif(path: &Path) -> Result<(FrameIterator, f64), MyError> {
     let file = File::open(path)
         .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE)))?;
     let mut options = gif::DecodeOptions::new();
-    options.set_color_output(gif::ColorOutput::RGBA);
+    // https://lib.rs/crates/gif-dispose
+    // for gif_dispose frame composing for rgba output, we need to set this as indexed.
+    options.set_color_output(gif::ColorOutput::Indexed);
     let mut decoder = options.read_info(file).map_err(|e| {
         MyError::Application(format!("{error}: {e:?}", error = ERROR_READING_GIF_HEADER))
     })?;
@@ -360,18 +362,23 @@ fn open_gif(path: &Path) -> Result<(FrameIterator, f64), MyError> {
     // delay is in units of 10ms, so we'll divide by 100.0, not 1000.0
     let mut delay: u64 = 0;
     let mut frames = Vec::new();
+    // The gif crate only exposes raw frame data that is not sufficient to render animated GIFs properly.
+    // GIF requires special composing of frames which is non-trivial.
+    let mut screen = gif_dispose::Screen::new_decoder(&decoder);
     while let Ok(Some(frame)) = decoder.read_next_frame() {
-        let buffer = frame.buffer.clone();
         delay += frame.delay as u64;
-        if let Some(image) = image::RgbaImage::from_raw(
-            decoder.width() as u32,
-            decoder.height() as u32,
-            buffer.to_vec(),
-        ) {
-            frames.push(DynamicImage::ImageRgba8(image));
-        } else {
-            // eprintln!("Failed to decode frame");
-        }
+        screen.blit_frame(&frame).map_err(|e| {
+            MyError::Application(format!("{error}: {e:?}", error = ERROR_DECODING_IMAGE))
+        })?;
+        let (buf, width, height) = screen.pixels_rgba().to_contiguous_buf();
+        frames.push(DynamicImage::ImageRgba8(image::RgbaImage::from_fn(
+            width as u32,
+            height as u32,
+            |x, y| {
+                let rgba = buf.as_ref()[y as usize * width + x as usize];
+                image::Rgba([rgba.r, rgba.g, rgba.b, rgba.a])
+            },
+        )));
     }
 
     // fps is only an average across all frames, there is no per frame delay modelling

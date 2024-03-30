@@ -679,6 +679,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gif-dispose"
+version = "5.0.0-beta.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0d20a3802e15ff705c260e39152ff1987145a1c5ae016bc3d510abceb45b9ed"
+dependencies = [
+ "gif",
+ "imgref",
+ "rgb",
+]
+
+[[package]]
 name = "gimli"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -841,6 +852,12 @@ dependencies = [
  "qoi",
  "tiff",
 ]
+
+[[package]]
+name = "imgref"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44feda355f4159a7c757171a77de25daf6411e217b4cabd03bd6650690468126"
 
 [[package]]
 name = "indexmap"
@@ -1577,6 +1594,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rgb"
+version = "0.8.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05aaa8004b64fd573fc9d002f4e632d51ad4f026c2b5ba95fcb6c2f32c2c47d8"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "rodio"
 version = "0.17.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2036,6 +2062,7 @@ dependencies = [
  "fast_image_resize",
  "ffmpeg-next",
  "gif",
+ "gif-dispose",
  "image",
  "libmpv",
  "libmpv-sirno",
