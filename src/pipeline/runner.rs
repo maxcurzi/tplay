@@ -138,6 +138,8 @@ impl Runner {
     ) -> Result<(), MyError> {
         barrier.wait();
         let mut time_count = std::time::Instant::now();
+        // make sure the first frame is shown immediately
+        time_count -= self.target_frame_duration();
         while self.state != State::Stopped {
             let frame_needs_refresh = self.process_control_commands();
 
@@ -149,6 +151,9 @@ impl Runner {
                 let frame = self.get_current_frame();
 
                 if self.runner_options.loop_playback && frame.is_none() {
+                    // make sure the first frame on replay is shown immediately
+                    time_count -= self.target_frame_duration();
+                    // send command to broker to replay
                     self.send_control(MediaControl::Replay)?;
                 }
 
@@ -288,6 +293,15 @@ impl Runner {
         }
     }
 
+    /// Determines the duration of a frame from the runner fps.
+    ///
+    /// # Returns
+    ///
+    /// A Duration type representing the duration of a frame.
+    fn target_frame_duration(&self) -> Duration {
+        Duration::from_nanos((1_000_000_000_f64 / self.runner_options.fps) as u64)
+    }
+
     /// Determines if the next frame should be sent based on the current time and the Runner's
     /// frame rate.
     ///
@@ -300,9 +314,8 @@ impl Runner {
     /// A tuple containing a boolean indicating whether the next frame should be sent, and the
     /// number of frames to skip if we are behind schedule.
     fn time_to_send_next_frame(&self, time_count: &mut std::time::Instant) -> (bool, usize) {
-        let target_frame_duration =
-            Duration::from_nanos((1_000_000_000_f64 / self.runner_options.fps) as u64);
         let elapsed_time = time_count.elapsed();
+        let target_frame_duration = self.target_frame_duration();
 
         if elapsed_time >= target_frame_duration {
             let frames_to_skip =
