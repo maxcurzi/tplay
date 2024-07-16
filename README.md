@@ -236,6 +236,7 @@ Some ideas:
 - More media controls (jump forward, jump backwards, loop, etc.).
 - Testing and feedback on installing and running it on other OSes.
 - Let me know if you have any other ideas!
+- Give a star to the repository, that way it can receive more potential contributions
 
 # License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
