@@ -28,30 +28,30 @@ default-run = "tplay"
 
 [dependencies]
 clap = { version = "4.2", features = ["derive"] }
-crossterm = "0.26"
+crossterm = "0.28"
 gif = "0.13.1"
 gif-dispose = "5.0.0-beta.2"
-libwebp-sys = "0.9"
-image = "0.24"
-opencv = { version = "0.84.4", default-features = false, features = [
+libwebp-sys = "0.10"
+image = "0.25"
+opencv = { version = "0.93", default-features = false, features = [
     "videoio",
     "imgproc",
     "clang-runtime",
 ] }
 thiserror = "1.0"
-fast_image_resize = "2.7"
-youtube_dl = "0.8"
+fast_image_resize = "4.2"
+youtube_dl = "0.10"
 tempfile = "3.5"
 url = "2.3"
 serde_json = "1.0"
-ffmpeg-next = "6.0"
+ffmpeg-next = "7.0.4"
 crossbeam-channel = "0.5"
 num = "0.4"
 either = "1.8"
 libmpv = { version = "2.0.1", optional = true } # MPV 0.34
 libmpv-sirno = { version = "2.0.2-fork.1", optional = true } # Temporary fix for MPV 0.35 (and probably later)
-rodio = { version = "0.17", optional = true } # Audio playback alternative to mpv
-reqwest = { version = "0.11", features = ["blocking"] }
+rodio = { version = "0.19", optional = true } # Audio playback alternative to mpv
+reqwest = { version = "0.12", features = ["blocking"] }
 
 [[bin]]
 name = "tplay"
