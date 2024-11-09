@@ -10,7 +10,7 @@ use crate::{
 };
 use either::Either;
 use gif;
-use image::{io::Reader as ImageReader, DynamicImage};
+use image::{ImageReader as ImageReader, DynamicImage};
 use opencv::{prelude::*, videoio::VideoCapture};
 use std::{fs::File, io::{Read, Write}, path::Path};
 use tempfile::{tempdir, TempPath};

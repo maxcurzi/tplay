@@ -9,10 +9,9 @@ use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor, Stylize},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
-    Result as CTResult,
 };
 use std::{
-    io::{stdout, Write},
+    io::{stdout, Write, Result as CTResult},
     time::Duration,
 };
 
