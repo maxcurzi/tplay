@@ -17,7 +17,7 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
 
 - [Terminal Media Player](#terminal-media-player)
 - [Table of Contents](#table-of-contents-)
-  - [Who is it for?](#who-is-it-for-)
+  - [Who is it for?](#who-is-it-for)
   - [Features](#features-)
 - [Getting Started](#getting-started-)
   - [Prerequisites](#prerequisites-)
@@ -26,6 +26,7 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
   - [Installation](#installation-)
     - [For users](#for-users-)
       - [Arch Linux](#arch-linux-)
+      - [NixOS](#nixos-)
       - [Other Distros](#other-distros-)
       - [Install Using Cargo](#install-using-cargo-)
     - [For developers](#for-developers-)
