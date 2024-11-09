@@ -9,7 +9,7 @@ use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor, Stylize},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
-    Result as CTResult,
+    // Result as Result,
 };
 use std::{
     io::{stdout, Write},
@@ -121,7 +121,7 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn clear(&self) -> CTResult<()> {
+    fn clear(&self) -> Result<(), MyError> {
         execute!(
             stdout(),
             Clear(ClearType::All),
@@ -139,7 +139,7 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn cleanup(&self) -> CTResult<()> {
+    fn cleanup(&self) -> Result<(), MyError> {
         // Restore terminal state
         execute!(
             stdout(),
@@ -166,7 +166,7 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn draw(&self, (string, rgb_data): &StringInfo) -> CTResult<()> {
+    fn draw(&self, (string, rgb_data): &StringInfo) -> Result<(), MyError> {
         let print_string = |string: &str| {
             let mut out = stdout();
             execute!(out, MoveTo(0, 0), Print(string), MoveTo(0, 0))?;
@@ -200,7 +200,7 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn handle_event(&mut self, event: Event) -> CTResult<()> {
+    fn handle_event(&mut self, event: Event) -> Result<(), MyError> {
         match event {
             // Quit
             Event::Key(KeyEvent {
