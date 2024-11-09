@@ -72,10 +72,8 @@ impl ImagePipeline {
     /// * An error occurs while creating an `ImageBuffer` from the resized image data.
     pub fn resize(&self, img: &DynamicImage) -> Result<DynamicImage, MyError> {
         let width =
-            // NonZeroU32::new(img.width()).ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?;
             img.width();
         let height =
-            // NonZeroU32::new(img.height()).ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?;
             img.height();
         let src_image = fr::images::Image::from_vec_u8(
             width,
@@ -85,15 +83,11 @@ impl ImagePipeline {
         )
         .map_err(|err| MyError::Pipeline(format!("{ERROR_RESIZE}:{err:?}")))?;
         let mut dst_image = fr::images::Image::new(
-            // NonZeroU32::new(self.target_resolution.0).ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?,
             self.target_resolution.0,
-            // NonZeroU32::new(self.target_resolution.1).ok_or(MyError::Pipeline(ERROR_DATA.to_string()))?,
             self.target_resolution.1,
             fr::PixelType::U8x3,
         );
-        // let mut dst_view = dst_image.view_mut(); OLD
 
-        // let mut resizer = fr::Resizer::new(fr::ResizeAlg::Nearest);
         let mut resizer = fr::Resizer::new();
         resizer
             .resize(&src_image, &mut dst_image, &fr::ResizeOptions::new().resize_alg(fr::ResizeAlg::Nearest))
