@@ -116,6 +116,9 @@ You can install it on Arch Linux using [aur](https://aur.archlinux.org/packages/
 ``` bash
 paru -S tplay-git
 ```
+### NixOS
+
+https://search.nixos.org/packages?channel=24.05&show=tplay&from=0&size=50&sort=relevance&type=packages&query=tplay
 
 ### Other Distros
 
