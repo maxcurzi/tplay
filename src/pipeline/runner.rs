@@ -411,10 +411,9 @@ impl Runner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use crate::msg::broker::Control as MediaControl;
     use crate::pipeline::{
         char_maps::CHARS1,
-        frames::open_media, // frames::FrameIterator,
+        frames::open_media,
         image_pipeline::ImagePipeline,
         runner::Control as PipelineControl,
     };
