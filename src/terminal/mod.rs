@@ -11,7 +11,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
 };
 use std::{
-    io::{stdout, Write, Result as CTResult},
+    io::{stdout, Write, Result as IOResult},
     time::Duration,
 };
 
@@ -120,7 +120,7 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn clear(&self) -> CTResult<()> {
+    fn clear(&self) -> IOResult<()> {
         execute!(
             stdout(),
             Clear(ClearType::All),
@@ -138,7 +138,7 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn cleanup(&self) -> CTResult<()> {
+    fn cleanup(&self) -> IOResult<()> {
         // Restore terminal state
         execute!(
             stdout(),
@@ -165,7 +165,7 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn draw(&self, (string, rgb_data): &StringInfo) -> CTResult<()> {
+    fn draw(&self, (string, rgb_data): &StringInfo) -> IOResult<()> {
         let print_string = |string: &str| {
             let mut out = stdout();
             execute!(out, MoveTo(0, 0), Print(string), MoveTo(0, 0))?;
@@ -199,7 +199,7 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn handle_event(&mut self, event: Event) -> CTResult<()> {
+    fn handle_event(&mut self, event: Event) -> IOResult<()> {
         match event {
             // Quit
             Event::Key(KeyEvent {
