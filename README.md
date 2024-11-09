@@ -90,7 +90,7 @@ The following dependencies are also required:
 
 They can be simply installed on Linux with your package manager. See [below](#prerequisites-installation-on-linux) for more details.
 
-## Prerequisites Installation on Linux
+## Prerequisites Installation on Ubuntu Linux
 If you're on Linux (Ubuntu), you can install all dependencies with your package manager. First install Rust:
 
 ```bash
@@ -123,7 +123,7 @@ https://search.nixos.org/packages?channel=24.05&show=tplay&from=0&size=50&sort=r
 
 ### Other Distros
 
-The package is not currently available on other Linux distros. With contribution and support it can be made available on other distros as well :).
+With your contribution and support it can be made available on other distros as well :).
 
 ### Install Using Cargo
 
