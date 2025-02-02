@@ -1,6 +1,6 @@
 use image::{DynamicImage, ImageBuffer};
 use num::{Rational64, ToPrimitive};
-use opencv::{imgproc, prelude::*};
+use opencv::{core::AlgorithmHint, imgproc, prelude::*};
 use serde_json::Value;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
@@ -63,7 +63,15 @@ pub fn extract_fps(video_path: &str) -> Option<f64> {
 /// `None` if an error occurs.
 pub fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
     let mut rgb_mat = Mat::default();
-    if imgproc::cvt_color(&mat, &mut rgb_mat, imgproc::COLOR_BGR2RGB, 0).is_ok() {
+    if imgproc::cvt_color(
+        &mat,
+        &mut rgb_mat,
+        imgproc::COLOR_BGR2RGB,
+        0,
+        AlgorithmHint::ALGO_HINT_DEFAULT,
+    )
+    .is_ok()
+    {
         if let Ok(_elem_size) = rgb_mat.elem_size() {
             if let Ok(size) = rgb_mat.size() {
                 let reshaped_mat = rgb_mat.reshape(1, size.width * size.height).ok()?;
