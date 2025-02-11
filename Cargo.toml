@@ -33,7 +33,7 @@ gif = "0.13.1"
 gif-dispose = "5.0.0-beta.2"
 libwebp-sys = "0.11"
 image = "0.25"
-opencv = { version = "0.93", default-features = false, features = [
+opencv = { version = "0.94.2", default-features = false, features = [
     "videoio",
     "imgproc",
     "clang-runtime",
