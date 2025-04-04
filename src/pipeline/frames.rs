@@ -147,13 +147,13 @@ impl FrameIterator {
 ///
 /// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
 /// `MyError` if an error occurs.
-pub fn open_media(path: String) -> Result<MediaData, MyError> {
+pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
     // Check if the path is a URL
     if let Ok(url) = Url::parse(path.as_str()) {
         if let Some(domain) = url.domain() {
             // handle YouTube domains specially
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
-                let video = youtube::download_video(path.as_str())?;
+                let video = youtube::download_video(path.as_str(), broswer.as_str())?;
                 let fps = extract_fps(video.as_os_str().to_str().unwrap_or(""));
                 let video_open = open_video(&video)?;
                 return Ok(MediaData {
