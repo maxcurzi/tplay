@@ -27,7 +27,7 @@ use tempfile::{self, TempPath};
 /// * `yt-dlp` is not installed on the system.
 /// * The video download fails for any reason.
 /// * There is an issue with creating or writing to the temporary file.
-pub fn download_video(url: &str) -> Result<TempPath, MyError> {
+pub fn download_video(url: &str, browser: &str) -> Result<TempPath, MyError> {
     // Check that yt-dlp is installed
     if Command::new("yt-dlp").output().is_err() {
         return Err(MyError::Application(
@@ -44,7 +44,11 @@ See https://github.com/yt-dlp/yt-dlp/wiki/Installation"
         .tempfile()?;
 
     let mut cmd = Command::new("yt-dlp");
-    cmd.arg(url)
+    cmd.arg(url)        
+        .arg("--cookies-from-browser") // Required by youtube
+        .arg(browser) // from cli now --browser <BROWSER> 
+                        // Supported browsers are: brave, chrome, chromium, edge, firefox, opera, safari, vivaldi, whale
+
         .arg("-o")
         .arg("-")
         .stdout(Stdio::from(temp_file.as_file().try_clone()?));
