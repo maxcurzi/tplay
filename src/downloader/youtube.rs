@@ -44,7 +44,11 @@ See https://github.com/yt-dlp/yt-dlp/wiki/Installation"
         .tempfile()?;
 
     let mut cmd = Command::new("yt-dlp");
-    cmd.arg(url)
+    cmd.arg(url)        
+        .arg("--cookies-from-browser") // Required by youtube
+        .arg("firefox") // Change to your browser 
+                        // Supported browsers are: brave, chrome, chromium, edge, firefox, opera, safari, vivaldi, whale
+
         .arg("-o")
         .arg("-")
         .stdout(Stdio::from(temp_file.as_file().try_clone()?));
