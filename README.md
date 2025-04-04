@@ -183,6 +183,7 @@ MPV support may be dropped in future releases.
 | `-a`, `--allow-frame-skip` | Experimental frame skip flag. Try to use it if the playback is too slow. |
 | `-n`, `--new-lines` | Experimental flag. Adds newline and carriage return `\n\r` at the end of each line (except the last). Terminals wrap around and don't need new lines, but if you want to copy-paste the text outside the terminal you may want them. The output would be a single long string otherwise. Uses more CPU. |
 | `-l`, `--loop-playback` | Loop video/gif forever (default: do not loop - play once) |
+| `-b`, `--browser` | It's used when downloading videos from YouTube, maps to yt-dlp `cookies-from-browser` to prove YouTube you're not a robot. Defaults to "firefox". Supported browsers are: brave, chrome, chromium, edge, firefox, opera, safari, vivaldi, whale |
 
 Substitute `tplay` with `cargo run --release --` if you plan to run from source.
 
