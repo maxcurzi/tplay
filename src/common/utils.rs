@@ -1,6 +1,6 @@
 use image::{DynamicImage, ImageBuffer};
 use num::{Rational64, ToPrimitive};
-use opencv::{imgproc, prelude::*};
+use opencv::{core::AlgorithmHint, imgproc, prelude::*};
 use serde_json::Value;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
@@ -68,6 +68,7 @@ pub fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
         &mut rgb_mat,
         imgproc::COLOR_BGR2RGB,
         0,
+        AlgorithmHint::ALGO_HINT_DEFAULT,
     )
     .is_ok()
     {
