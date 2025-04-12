@@ -82,7 +82,7 @@ These instructions will get you a copy of the project up and running on your loc
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
-- [OpenCV 4](https://github.com/twistedfall/opencv-rust#getting-opencv) Tested with OpenCV 4. It may work with OpenCV 3.4 and above.
+- [OpenCV 4](https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html) Tested with OpenCV 4.6, 4.10, 4.11.
 - [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
 - [ffmpeg](https://ffmpeg.org/download.html) Currently supported FFmpeg 6.1
 - Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
@@ -101,8 +101,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install `tplay`'s prerequisite dependencies:
 
 ```bash
-sudo apt install libssl-dev libopencv-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp
+sudo apt install libssl-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp
 ```
+And install OpenCV following this guide https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html.
+Do not install via apt `libopencv-dev` as it's out of date.
 
 ## Prerequisites installation on Windows
 The crate can run on Windows and all prerequisites (opencv, ffmpeg) can be installed with vcpkg. However, the installation/setup process is lengthy and prone to errors. Performance is also very poor. Save yourself a headache: use WSL and follow the [Linux instructions](#prerequisites-installation-on-linux).
