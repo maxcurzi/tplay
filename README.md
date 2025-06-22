@@ -226,7 +226,7 @@ tplay /dev/video0
 - `q` - quit
 
 # Known Issues
-- Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) for great performance.
+- Videos played through the console terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) for great performance.
 - Media playback is CPU-intensive. To improve performance, increase the font size, reduce the terminal window size, or run with the `-a` / `--allow-frame-skip` flag.
 
 # Alternatives
