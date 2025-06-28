@@ -105,6 +105,8 @@ sudo apt install libssl-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilt
 ```
 And install OpenCV following this guide https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html.
 Do not install via apt `libopencv-dev` as it's out of date.
+Note, I tested this by building openCV from source in the guide above, and at the end I invoked `sudo make install`. The guide doesn't recommend that and you may want to use an alternative method, but this is how I installed it.
+After installing OpenCV from source you may also need to add the folder where you built OpenCV to LD_LIBRARY_PATH, for example: `export LD_LIBRARY_PATH=/home/<your user>/build/lib:$LD_LIBRARY_PATH`
 
 ## Prerequisites installation on Windows
 The crate can run on Windows and all prerequisites (opencv, ffmpeg) can be installed with vcpkg. However, the installation/setup process is lengthy and prone to errors. Performance is also very poor. Save yourself a headache: use WSL and follow the [Linux instructions](#prerequisites-installation-on-linux).
