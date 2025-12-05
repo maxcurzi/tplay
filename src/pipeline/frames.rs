@@ -10,12 +10,16 @@ use crate::{
 };
 use either::Either;
 use gif;
-use image::{ImageReader as ImageReader, DynamicImage};
+use image::{DynamicImage, ImageReader};
+use libwebp_sys as webp;
 use opencv::{prelude::*, videoio::VideoCapture};
-use std::{fs::File, io::{Read, Write}, path::Path};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+};
 use tempfile::{tempdir, TempPath};
 use url::Url;
-use libwebp_sys as webp;
 
 /// An iterator over the frames of a media file.
 ///
@@ -165,7 +169,10 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
                 // otherwise download the url to a temp file and open media from there.
                 let tmp = tempdir()?;
                 // use the last segment of the url path (for the ext) or a random name otherwise with no extension
-                let name = url.path_segments().and_then(|s| s.last()).unwrap_or("unknown_media");
+                let name = url
+                    .path_segments()
+                    .and_then(|s| s.last())
+                    .unwrap_or("unknown_media");
                 let p = tmp.path().join(name);
                 download_url_to_file(p.as_path(), url)?;
                 open_media_from_path(p.as_os_str().to_str().unwrap_or(""), p.as_path())
@@ -226,7 +233,7 @@ fn open_media_from_path(path_str: &str, path: &Path) -> Result<MediaData, MyErro
                 fps: Some(fps),
                 audio_path: None,
             })
-        },
+        }
 
         // Webp
         Some("webp") => {
@@ -236,7 +243,7 @@ fn open_media_from_path(path_str: &str, path: &Path) -> Result<MediaData, MyErro
                 fps: Some(fps),
                 audio_path: None,
             })
-        },
+        }
 
         // Unknown extension, try open as video
         _ => Ok(MediaData {
@@ -284,11 +291,21 @@ fn capture_video_frame(video: &mut VideoCapture) -> Option<DynamicImage> {
 fn download_url_to_file(path: &Path, url: Url) -> Result<(), MyError> {
     let tmp_file = File::create(path)?;
     let mut tmp_file = std::io::BufWriter::new(tmp_file);
-    tmp_file.write_all(reqwest::blocking::get(url).and_then(|resp| resp.bytes()).map_err(|err| {
-        MyError::Application(format!("{error}: {err:?}", error = ERROR_DOWNLOADING_RESOURCE))
-    })?.as_ref()).map_err(|err| {
-        MyError::Application(format!("{error}: {err:?}", error = ERROR_OPENING_RESOURCE))
-    })
+    tmp_file
+        .write_all(
+            reqwest::blocking::get(url)
+                .and_then(|resp| resp.bytes())
+                .map_err(|err| {
+                    MyError::Application(format!(
+                        "{error}: {err:?}",
+                        error = ERROR_DOWNLOADING_RESOURCE
+                    ))
+                })?
+                .as_ref(),
+        )
+        .map_err(|err| {
+            MyError::Application(format!("{error}: {err:?}", error = ERROR_OPENING_RESOURCE))
+        })
 }
 
 /// Opens the specified image file and returns a `FrameIterator`.
@@ -349,8 +366,9 @@ fn open_video(path: &Path) -> Result<FrameIterator, MyError> {
 /// A `Result` containing a `FrameIterator` and fps if the animated GIF file is successfully opened, or a
 /// `MyError` if an error occurs.
 fn open_gif(path: &Path) -> Result<(FrameIterator, f64), MyError> {
-    let file = File::open(path)
-        .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE)))?;
+    let file = File::open(path).map_err(|e| {
+        MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE))
+    })?;
     let mut options = gif::DecodeOptions::new();
     // https://lib.rs/crates/gif-dispose
     // for gif_dispose frame composing for rgba output, we need to set this as indexed.
@@ -383,10 +401,13 @@ fn open_gif(path: &Path) -> Result<(FrameIterator, f64), MyError> {
 
     // fps is only an average across all frames, there is no per frame delay modelling
     let fps = frames.len() as f64 / (delay.max(1) as f64 / 100.0);
-    Ok((FrameIterator::AnimatedImage {
-        frames,
-        current_frame: 0,
-    }, fps))
+    Ok((
+        FrameIterator::AnimatedImage {
+            frames,
+            current_frame: 0,
+        },
+        fps,
+    ))
 }
 
 /// Opens the specified animated WEBP file and returns a `FrameIterator`.
@@ -403,8 +424,9 @@ fn open_gif(path: &Path) -> Result<(FrameIterator, f64), MyError> {
 /// A `Result` containing a `FrameIterator` and fps if the animated WEBP file is successfully opened, or a
 /// `MyError` if an error occurs.
 fn open_webp(path: &Path) -> Result<(FrameIterator, f64), MyError> {
-    let mut file = File::open(path)
-        .map_err(|e| MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE)))?;
+    let mut file = File::open(path).map_err(|e| {
+        MyError::Application(format!("{error}: {e:?}", error = ERROR_OPENING_RESOURCE))
+    })?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
     let mut frames = Vec::new();
@@ -413,13 +435,19 @@ fn open_webp(path: &Path) -> Result<(FrameIterator, f64), MyError> {
     // this code is based on the code example here:
     // https://developers.google.com/speed/webp/docs/container-api#webpanimdecoder_api
     unsafe {
-        let mut options = webp::WebPAnimDecoderOptions{
+        let mut options = webp::WebPAnimDecoderOptions {
             color_mode: webp::WEBP_CSP_MODE::MODE_RGBA,
             use_threads: 0,
             padding: [0, 0, 0, 0, 0, 0, 0],
         };
         webp::WebPAnimDecoderOptionsInit(&mut options);
-        let dec = webp::WebPAnimDecoderNew(&webp::WebPData{bytes: buf.as_ptr(), size: buf.len()}, &options);
+        let dec = webp::WebPAnimDecoderNew(
+            &webp::WebPData {
+                bytes: buf.as_ptr(),
+                size: buf.len(),
+            },
+            &options,
+        );
         let mut info = webp::WebPAnimInfo::default();
         webp::WebPAnimDecoderGetInfo(dec, &mut info);
         let frame_sz = (info.canvas_width * info.canvas_height * 4) as usize;
@@ -446,9 +474,13 @@ fn open_webp(path: &Path) -> Result<(FrameIterator, f64), MyError> {
     }
 
     // fps is only an average across all frames, there is no per frame delay modelling
-    let fps = frames.len() as f64 / ((last_timestamp.saturating_sub(first_timestamp).max(1)) as f64 / 1000.0);
-    Ok((FrameIterator::AnimatedImage {
-        frames,
-        current_frame: 0,
-    }, fps))
+    let fps = frames.len() as f64
+        / ((last_timestamp.saturating_sub(first_timestamp).max(1)) as f64 / 1000.0);
+    Ok((
+        FrameIterator::AnimatedImage {
+            frames,
+            current_frame: 0,
+        },
+        fps,
+    ))
 }

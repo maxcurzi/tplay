@@ -11,7 +11,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
 };
 use std::{
-    io::{stdout, Write, Result as IOResult},
+    io::{stdout, Result as IOResult, Write},
     time::Duration,
 };
 
@@ -105,10 +105,22 @@ impl Terminal {
                 self.handle_event(ev)?;
             }
 
-            // Wait for next frame to draw
-            if let Ok(Some(s)) = self.rx_buffer.try_recv() {
-                self.draw(&s)?;
-            };
+            // Fetch next frame or detect pipeline shutdown.
+            match self.rx_buffer.try_recv() {
+                Ok(Some(s)) => {
+                    self.draw(&s)?;
+                }
+                Ok(None) => {
+                    // Pipeline heartbeat: nothing to draw.
+                }
+                Err(crossbeam_channel::TryRecvError::Empty) => {
+                    // No frame available right now.
+                }
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    // Producer dropped: exit gracefully.
+                    self.state = State::Stopped;
+                }
+            }
         }
 
         self.cleanup()?;

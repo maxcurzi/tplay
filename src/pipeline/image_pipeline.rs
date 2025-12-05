@@ -71,10 +71,8 @@ impl ImagePipeline {
     /// * An error occurs while resizing the image using the `fr::Resizer`.
     /// * An error occurs while creating an `ImageBuffer` from the resized image data.
     pub fn resize(&self, img: &DynamicImage) -> Result<DynamicImage, MyError> {
-        let width =
-            img.width();
-        let height =
-            img.height();
+        let width = img.width();
+        let height = img.height();
         let src_image = fr::images::Image::from_vec_u8(
             width,
             height,
@@ -90,7 +88,11 @@ impl ImagePipeline {
 
         let mut resizer = fr::Resizer::new();
         resizer
-            .resize(&src_image, &mut dst_image, &fr::ResizeOptions::new().resize_alg(fr::ResizeAlg::Nearest))
+            .resize(
+                &src_image,
+                &mut dst_image,
+                &fr::ResizeOptions::new().resize_alg(fr::ResizeAlg::Nearest),
+            )
             .map_err(|err| MyError::Pipeline(format!("{ERROR_RESIZE}:{err:?}")))?;
 
         let dst_image = dst_image.into_vec();

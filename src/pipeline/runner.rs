@@ -56,6 +56,8 @@ pub struct RunnerOptions {
     pub w_mod: u32,
     /// loop_playback back to the first frame after iterating through frames.
     pub loop_playback: bool,
+    /// Exit automatically when the media ends
+    pub auto_exit: bool,
 }
 /// Enum representing the different control commands that can be sent to the Runner.
 #[derive(Debug, PartialEq)]
@@ -155,6 +157,12 @@ impl Runner {
                     time_count -= self.target_frame_duration();
                     // send command to broker to replay
                     self.send_control(MediaControl::Replay)?;
+                } else if frame.is_none() && self.runner_options.auto_exit {
+                    // end of media: ask broker to exit and stop this runner.
+                    let _ = self.send_control(MediaControl::Exit);
+                    self.state = State::Stopped;
+                    // non inviare altri frame
+                    continue;
                 }
 
                 // Check if terminal is ready for the next frame
@@ -412,9 +420,7 @@ impl Runner {
 mod tests {
     use super::*;
     use crate::pipeline::{
-        char_maps::CHARS1,
-        frames::open_media,
-        image_pipeline::ImagePipeline,
+        char_maps::CHARS1, frames::open_media, image_pipeline::ImagePipeline,
         runner::Control as PipelineControl,
     };
     use crate::StringInfo;
@@ -427,7 +433,8 @@ mod tests {
     fn test_time_to_send_next_frame() {
         let fps = 23.976;
         let loop_playback = false;
-        let media_data = open_media(MEDIA_FILE.to_string(), crate::DEFAULT_BROWSER.to_string()).unwrap();
+        let media_data =
+            open_media(MEDIA_FILE.to_string(), crate::DEFAULT_BROWSER.to_string()).unwrap();
         let media = media_data.frame_iter;
         let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
 
@@ -445,6 +452,7 @@ mod tests {
                 fps,
                 w_mod: 1,
                 loop_playback,
+                auto_exit: false,
             },
         );
 

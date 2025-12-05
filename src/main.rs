@@ -34,8 +34,8 @@ struct Args {
     /// Force a user-specified FPS
     #[arg(short, long)]
     fps: Option<String>,
-    /// import YT cookies from browser (default: firefox) 
-    #[arg(short, long, required= false)]
+    /// import YT cookies from browser (default: firefox)
+    #[arg(short, long, required = false)]
     browser: Option<String>,
     /// Loop playing of video/gif
     #[arg(short, long, default_value = "false")]
@@ -55,6 +55,9 @@ struct Args {
     /// Experimental flag to add newlines
     #[arg(short, long, default_value = "false")]
     new_lines: bool,
+    /// Exit automatically when the media ends
+    #[arg(long, short = 'x', default_value = "false")]
+    auto_exit: bool,
 }
 
 const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
@@ -134,6 +137,7 @@ impl MediaProcessor {
         let cmaps = args.char_map.chars().collect();
         let w_mod = args.w_mod;
         let loop_playback = args.loop_playback;
+        let auto_exit = args.auto_exit;
         let allow_frame_skip = args.allow_frame_skip;
         let new_lines = args.new_lines;
         let handle = thread::spawn(move || -> Result<(), MyError> {
@@ -147,6 +151,7 @@ impl MediaProcessor {
                     fps: use_fps,
                     w_mod,
                     loop_playback,
+                    auto_exit,
                 },
             );
             runner.run(barrier, allow_frame_skip)
@@ -181,7 +186,11 @@ fn main() -> Result<(), MyError> {
     let args = Args::parse();
 
     let title = args.input.clone();
-    let browser = if args.browser.clone().is_some() { args.browser.clone().unwrap() } else { String::from(DEFAULT_BROWSER) };
+    let browser = if args.browser.clone().is_some() {
+        args.browser.clone().unwrap()
+    } else {
+        String::from(DEFAULT_BROWSER)
+    };
 
     let media_data = open_media(title, browser)?;
     let media = media_data.frame_iter;
