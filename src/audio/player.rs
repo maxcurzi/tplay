@@ -31,4 +31,6 @@ pub trait AudioPlayerControls {
     fn unmute(&mut self) -> Result<(), MyError>;
     fn rewind(&mut self) -> Result<(), MyError>;
     fn toggle_mute(&mut self) -> Result<(), MyError>;
+    fn seek(&mut self, seconds: f64) -> Result<(), MyError>;
+    fn set_speed(&mut self, speed: f64) -> Result<(), MyError>;
 }

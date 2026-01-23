@@ -47,6 +47,8 @@ pub struct Runner {
     last_frame: Option<DynamicImage>,
     /// Runner options
     runner_options: RunnerOptions,
+    /// Current playback speed multiplier (1.0 = normal).
+    current_speed: f64,
 }
 
 pub struct RunnerOptions {
@@ -77,6 +79,12 @@ pub enum Control {
     /// Command to set grayscale mode. We always extract rgb+grayscale from image, the
     /// terminal is responsible for the correct render mode.
     SetGrayscale(bool),
+    /// Command to seek forward or backward by the specified number of seconds.
+    /// Positive values seek forward, negative values seek backward.
+    Seek(f64),
+    /// Command to adjust the playback speed.
+    /// The argument represents the speed multiplier (e.g., 1.0 = normal, 0.5 = half, 2.0 = double).
+    SetSpeed(f64),
 }
 
 impl Runner {
@@ -122,6 +130,7 @@ impl Runner {
             char_maps,
             last_frame: None,
             runner_options,
+            current_speed: 1.0,
         }
     }
 
@@ -243,6 +252,12 @@ impl Runner {
                     self.set_char_map(char_map);
                 }
                 Control::SetGrayscale(_) => { /* ignore */ }
+                Control::Seek(seconds) => {
+                    self.seek_media(seconds);
+                }
+                Control::SetSpeed(speed) => {
+                    self.set_playback_speed(speed);
+                }
             }
         }
         needs_refresh
@@ -301,13 +316,14 @@ impl Runner {
         }
     }
 
-    /// Determines the duration of a frame from the runner fps.
+    /// Determines the duration of a frame from the runner fps and current playback speed.
     ///
     /// # Returns
     ///
-    /// A Duration type representing the duration of a frame.
+    /// A Duration type representing the duration of a frame, adjusted for playback speed.
     fn target_frame_duration(&self) -> Duration {
-        Duration::from_nanos((1_000_000_000_f64 / self.runner_options.fps) as u64)
+        let adjusted_fps = self.runner_options.fps * self.current_speed;
+        Duration::from_nanos((1_000_000_000_f64 / adjusted_fps) as u64)
     }
 
     /// Determines if the next frame should be sent based on the current time and the Runner's
@@ -353,6 +369,38 @@ impl Runner {
     ///
     fn replay_pipeline(&mut self) {
         self.media.reset();
+    }
+
+    /// Seeks the media forward or backward by the specified number of seconds.
+    /// If the media has ended (no more frames), seeking backwards will reset the video
+    /// to the beginning first, then seek to the appropriate position.
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - The number of seconds to seek. Positive seeks forward, negative seeks backward.
+    fn seek_media(&mut self, seconds: f64) {
+        let at_end = self.media.is_at_end();
+        
+        if at_end && seconds < 0.0 {
+            // Media has ended and user is seeking backwards - reset first then seek
+            self.media.reset();
+            // Don't seek further, just restart from beginning
+            // The audio will also be restarted via the broker's seek handling
+        } else {
+            self.media.seek_seconds(seconds, self.runner_options.fps);
+        }
+        // Clear last frame to force refresh after seeking
+        self.last_frame = None;
+    }
+
+    /// Sets the playback speed multiplier.
+    ///
+    /// # Arguments
+    ///
+    /// * `speed` - The speed multiplier (1.0 = normal, 0.5 = half, 2.0 = double).
+    fn set_playback_speed(&mut self, speed: f64) {
+        // Clamp speed to reasonable bounds
+        self.current_speed = speed.clamp(0.25, 4.0);
     }
 
     /// Sends a control command to the media processing thread.
@@ -490,5 +538,90 @@ mod tests {
         let (should_process, frames_to_skip) = runner.time_to_send_next_frame(&mut time_count);
         assert_eq!(should_process, true);
         assert_eq!(frames_to_skip, 2);
+    }
+
+    #[test]
+    fn test_playback_speed_affects_frame_duration() {
+        let fps = 30.0;
+        let loop_playback = false;
+        let media_data =
+            open_media(MEDIA_FILE.to_string(), crate::DEFAULT_BROWSER.to_string()).unwrap();
+        let media = media_data.frame_iter;
+        let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
+
+        let (tx_frames, _rx_frames) = bounded::<Option<StringInfo>>(1);
+        let (_tx_controls_pipeline, rx_controls_pipeline) = unbounded::<PipelineControl>();
+        let (tx_control, _rx_controls_media) = unbounded::<MediaControl>();
+
+        let mut runner = Runner::new(
+            pipeline,
+            media,
+            tx_frames,
+            rx_controls_pipeline,
+            tx_control,
+            RunnerOptions {
+                fps,
+                w_mod: 1,
+                loop_playback,
+                auto_exit: false,
+            },
+        );
+
+        // At normal speed (1.0x), frame duration should be ~33.33ms for 30fps
+        let normal_duration = runner.target_frame_duration();
+        let expected_normal_nanos = (1_000_000_000_f64 / fps) as u64;
+        assert_eq!(normal_duration.as_nanos() as u64, expected_normal_nanos);
+
+        // At 2x speed, frame duration should be halved
+        runner.set_playback_speed(2.0);
+        let fast_duration = runner.target_frame_duration();
+        let expected_fast_nanos = (1_000_000_000_f64 / (fps * 2.0)) as u64;
+        assert_eq!(fast_duration.as_nanos() as u64, expected_fast_nanos);
+
+        // At 0.5x speed, frame duration should be doubled
+        runner.set_playback_speed(0.5);
+        let slow_duration = runner.target_frame_duration();
+        let expected_slow_nanos = (1_000_000_000_f64 / (fps * 0.5)) as u64;
+        assert_eq!(slow_duration.as_nanos() as u64, expected_slow_nanos);
+    }
+
+    #[test]
+    fn test_playback_speed_clamping() {
+        let fps = 30.0;
+        let loop_playback = false;
+        let media_data =
+            open_media(MEDIA_FILE.to_string(), crate::DEFAULT_BROWSER.to_string()).unwrap();
+        let media = media_data.frame_iter;
+        let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
+
+        let (tx_frames, _rx_frames) = bounded::<Option<StringInfo>>(1);
+        let (_tx_controls_pipeline, rx_controls_pipeline) = unbounded::<PipelineControl>();
+        let (tx_control, _rx_controls_media) = unbounded::<MediaControl>();
+
+        let mut runner = Runner::new(
+            pipeline,
+            media,
+            tx_frames,
+            rx_controls_pipeline,
+            tx_control,
+            RunnerOptions {
+                fps,
+                w_mod: 1,
+                loop_playback,
+                auto_exit: false,
+            },
+        );
+
+        // Speed should be clamped to max 4.0
+        runner.set_playback_speed(10.0);
+        assert_eq!(runner.current_speed, 4.0);
+
+        // Speed should be clamped to min 0.25
+        runner.set_playback_speed(0.1);
+        assert_eq!(runner.current_speed, 0.25);
+
+        // Normal speeds should not be clamped
+        runner.set_playback_speed(1.5);
+        assert_eq!(runner.current_speed, 1.5);
     }
 }

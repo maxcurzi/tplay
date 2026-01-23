@@ -30,6 +30,10 @@ pub enum Control {
     /// Command to set grayscale mode. We always extract rgb+grayscale from image, the terminal is
     /// responsible for the correct render mode.
     SetGrayscale(bool),
+    /// Command to seek forward or backward by the specified number of seconds.
+    Seek(f64),
+    /// Command to adjust the playback speed.
+    SetSpeed(f64),
 }
 
 type BrokerControl = Control;
@@ -123,6 +127,22 @@ impl MessageBroker {
                         Ok(BrokerControl::MuteUnmute) => {
                             if let Some(tx) = &self.tx_channel_audio {
                                 let _ = tx.send(AudioControl::MuteUnmute);
+                            }
+                        }
+                        Ok(BrokerControl::Seek(seconds)) => {
+                            if let Some(tx) = &self.tx_channel_pipeline {
+                                let _ = tx.send(PipelineControl::Seek(seconds));
+                            }
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::Seek(seconds));
+                            }
+                        }
+                        Ok(BrokerControl::SetSpeed(speed)) => {
+                            if let Some(tx) = &self.tx_channel_pipeline {
+                                let _ = tx.send(PipelineControl::SetSpeed(speed));
+                            }
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::SetSpeed(speed));
                             }
                         }
                         Err(_) => {

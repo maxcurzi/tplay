@@ -142,4 +142,59 @@ impl AudioPlayerControls for RodioAudioPlayer {
         self.player.stop();
         Ok(())
     }
+
+    /// Seeks forward or backward by the specified number of seconds.
+    /// Note: rodio's try_seek may not work for all audio formats or when audio has finished.
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - The number of seconds to seek. Positive seeks forward, negative seeks backward.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    fn seek(&mut self, seconds: f64) -> Result<(), MyError> {
+        let current_pos = self.player.get_pos();
+        let target_secs = (current_pos.as_secs_f64() + seconds).max(0.0);
+        let target_duration = std::time::Duration::from_secs_f64(target_secs);
+
+        // If the sink is empty (audio finished), we need to rebuild the decoder
+        // and seek to the target position
+        if self.player.empty() {
+            self.player.clear();
+            let input = Cursor::new(self.content.clone());
+            let input = rodio::decoder::Decoder::new(input).map_err(|err| {
+                MyError::Audio(format!(
+                    "Could not create decoder for seek: {:?}",
+                    err
+                ))
+            })?;
+            self.player.append(input);
+            // Now seek to target position
+            let _ = self.player.try_seek(target_duration);
+            self.player.play();
+            return Ok(());
+        }
+
+        // Normal seek when audio is still playing
+        self.player
+            .try_seek(target_duration)
+            .map_err(|err| MyError::Audio(format!("Seek failed: {:?}", err)))
+    }
+
+    /// Sets the playback speed multiplier.
+    ///
+    /// # Arguments
+    ///
+    /// * `speed` - The speed multiplier (1.0 = normal, 0.5 = half, 2.0 = double).
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    fn set_speed(&mut self, speed: f64) -> Result<(), MyError> {
+        // Clamp speed to reasonable bounds
+        let clamped_speed = speed.clamp(0.25, 4.0) as f32;
+        self.player.set_speed(clamped_speed);
+        Ok(())
+    }
 }

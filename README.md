@@ -57,7 +57,7 @@ This crate is still in early development, but it already has a lot of features. 
 - [x] RGB Colors (on terminals that support RGB colors)
 - [x] Play sounds
 - [x] Spark joy
-- [ ] Full media controls (forward, backwards, etc)
+- [x] Media controls (seek forward/backward, playback speed)
 - [ ] Subtitles
 - [ ] Replace a fully-fledged media player
 
@@ -265,6 +265,8 @@ tplay /dev/video0
 - `space` - toggle pause/unpause
 - `g` - toggle grayscale/color
 - `m` - toggle mute/unmute
+- `←` / `→` - seek backward/forward 5 seconds
+- `<` / `>` - decrease/increase playback speed (0.25x steps, range: 0.25x - 4.0x)
 - `q` - quit
 
 # Known Issues

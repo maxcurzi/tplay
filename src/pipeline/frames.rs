@@ -135,6 +135,68 @@ impl FrameIterator {
             }
         }
     }
+
+    /// Checks if the media has reached the end (no more frames available).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the media has ended, `false` otherwise.
+    pub fn is_at_end(&self) -> bool {
+        match self {
+            FrameIterator::Image(img) => img.is_none(),
+            FrameIterator::Video(video) => {
+                // Check if we're at or past the end of the video
+                let pos = video.get(opencv::videoio::CAP_PROP_POS_AVI_RATIO).unwrap_or(0.0);
+                pos >= 1.0
+            }
+            FrameIterator::AnimatedImage { frames, current_frame } => {
+                *current_frame >= frames.len()
+            }
+        }
+    }
+
+    /// Seeks forward or backward by the specified number of seconds.
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - The number of seconds to seek. Positive values seek forward,
+    ///   negative values seek backward.
+    /// * `fps` - The frame rate of the media, used to calculate frame positions for animated images.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the seek was successful or partially successful, `false` otherwise.
+    pub fn seek_seconds(&mut self, seconds: f64, fps: f64) -> bool {
+        match self {
+            FrameIterator::Image(_) => {
+                // For a single image, seeking is a no-op
+                false
+            }
+            FrameIterator::Video(ref mut video) => {
+                // Get current position in milliseconds
+                let current_ms = video
+                    .get(opencv::videoio::CAP_PROP_POS_MSEC)
+                    .unwrap_or(0.0);
+                let target_ms = (current_ms + seconds * 1000.0).max(0.0);
+                video
+                    .set(opencv::videoio::CAP_PROP_POS_MSEC, target_ms)
+                    .unwrap_or(false)
+            }
+            FrameIterator::AnimatedImage {
+                ref mut current_frame,
+                frames,
+            } => {
+                if frames.is_empty() {
+                    return false;
+                }
+                let frames_to_seek = (seconds * fps).round() as i64;
+                let new_frame = (*current_frame as i64 + frames_to_seek)
+                    .rem_euclid(frames.len() as i64) as usize;
+                *current_frame = new_frame;
+                true
+            }
+        }
+    }
 }
 
 /// Opens the specified media file and returns a `FrameIterator` for iterating over its frames.
@@ -483,4 +545,133 @@ fn open_webp(path: &Path) -> Result<(FrameIterator, f64), MyError> {
         },
         fps,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_animated_image_seek_forward() {
+        // Create a mock animated image with 100 frames
+        let frames: Vec<DynamicImage> = (0..100)
+            .map(|_| DynamicImage::new_rgb8(1, 1))
+            .collect();
+        let mut frame_iter = FrameIterator::AnimatedImage {
+            frames,
+            current_frame: 0,
+        };
+
+        let fps = 30.0;
+        // Seek forward 1 second (30 frames at 30fps)
+        frame_iter.seek_seconds(1.0, fps);
+
+        if let FrameIterator::AnimatedImage { current_frame, .. } = frame_iter {
+            assert_eq!(current_frame, 30);
+        } else {
+            panic!("Expected AnimatedImage variant");
+        }
+    }
+
+    #[test]
+    fn test_animated_image_seek_backward() {
+        // Create a mock animated image with 100 frames
+        let frames: Vec<DynamicImage> = (0..100)
+            .map(|_| DynamicImage::new_rgb8(1, 1))
+            .collect();
+        let mut frame_iter = FrameIterator::AnimatedImage {
+            frames,
+            current_frame: 50,
+        };
+
+        let fps = 30.0;
+        // Seek backward 1 second (30 frames at 30fps)
+        frame_iter.seek_seconds(-1.0, fps);
+
+        if let FrameIterator::AnimatedImage { current_frame, .. } = frame_iter {
+            assert_eq!(current_frame, 20);
+        } else {
+            panic!("Expected AnimatedImage variant");
+        }
+    }
+
+    #[test]
+    fn test_animated_image_seek_wraps_around() {
+        // Create a mock animated image with 100 frames
+        let frames: Vec<DynamicImage> = (0..100)
+            .map(|_| DynamicImage::new_rgb8(1, 1))
+            .collect();
+        let mut frame_iter = FrameIterator::AnimatedImage {
+            frames,
+            current_frame: 10,
+        };
+
+        let fps = 30.0;
+        // Seek backward beyond start should wrap to end
+        frame_iter.seek_seconds(-1.0, fps);
+
+        if let FrameIterator::AnimatedImage { current_frame, .. } = frame_iter {
+            // 10 - 30 = -20, which wraps to 80 (100 - 20)
+            assert_eq!(current_frame, 80);
+        } else {
+            panic!("Expected AnimatedImage variant");
+        }
+    }
+
+    #[test]
+    fn test_image_seek_is_noop() {
+        let img = DynamicImage::new_rgb8(1, 1);
+        let mut frame_iter = FrameIterator::Image(Some(img));
+
+        let result = frame_iter.seek_seconds(5.0, 30.0);
+        // Seeking a single image should return false (no-op)
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_animated_image_is_at_end() {
+        // Create a mock animated image with 10 frames
+        let frames: Vec<DynamicImage> = (0..10)
+            .map(|_| DynamicImage::new_rgb8(1, 1))
+            .collect();
+        
+        // At the start, not at end
+        let frame_iter = FrameIterator::AnimatedImage {
+            frames: frames.clone(),
+            current_frame: 0,
+        };
+        assert!(!frame_iter.is_at_end());
+
+        // In the middle, not at end
+        let frame_iter = FrameIterator::AnimatedImage {
+            frames: frames.clone(),
+            current_frame: 5,
+        };
+        assert!(!frame_iter.is_at_end());
+
+        // At the end
+        let frame_iter = FrameIterator::AnimatedImage {
+            frames: frames.clone(),
+            current_frame: 10,
+        };
+        assert!(frame_iter.is_at_end());
+
+        // Past the end
+        let frame_iter = FrameIterator::AnimatedImage {
+            frames,
+            current_frame: 15,
+        };
+        assert!(frame_iter.is_at_end());
+    }
+
+    #[test]
+    fn test_image_is_at_end() {
+        // Image with content is not at end
+        let frame_iter = FrameIterator::Image(Some(DynamicImage::new_rgb8(1, 1)));
+        assert!(!frame_iter.is_at_end());
+
+        // Image without content (consumed) is at end
+        let frame_iter = FrameIterator::Image(None);
+        assert!(frame_iter.is_at_end());
+    }
 }

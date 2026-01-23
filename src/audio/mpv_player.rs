@@ -137,4 +137,36 @@ impl AudioPlayerControls for MpvAudioPlayer {
             "Rewind feature not implemented for MPV audio player".to_string(),
         ))
     }
+
+    /// Seeks forward or backward by the specified number of seconds.
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - The number of seconds to seek. Positive seeks forward, negative seeks backward.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    fn seek(&mut self, seconds: f64) -> Result<(), MyError> {
+        let seek_arg = format!("{}", seconds);
+        self.mpv
+            .command("seek", &[&seek_arg, "relative"])
+            .map_err(|err| MyError::Audio(format!("Seek failed: {:?}", err)))
+    }
+
+    /// Sets the playback speed multiplier.
+    ///
+    /// # Arguments
+    ///
+    /// * `speed` - The speed multiplier (1.0 = normal, 0.5 = half, 2.0 = double).
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    fn set_speed(&mut self, speed: f64) -> Result<(), MyError> {
+        let clamped_speed = speed.clamp(0.25, 4.0);
+        self.mpv
+            .set_property("speed", clamped_speed)
+            .map_err(|err| MyError::Audio(format!("Set speed failed: {:?}", err)))
+    }
 }

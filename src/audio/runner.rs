@@ -42,6 +42,10 @@ pub enum Control {
     MuteUnmute,
     /// Command to stop the playback and exit the Runner.
     Exit,
+    /// Command to seek forward or backward by the specified number of seconds.
+    Seek(f64),
+    /// Command to adjust the playback speed.
+    SetSpeed(f64),
 }
 
 impl Runner {
@@ -88,6 +92,13 @@ impl Runner {
                         Control::Exit => {
                             self.state = State::Stopped;
                             self.audio_player.player.stop()?;
+                        },
+                        Control::Seek(seconds) => {
+                            // Best-effort seek; may not work for all audio backends/formats
+                            let _ = self.audio_player.player.seek(seconds);
+                        },
+                        Control::SetSpeed(speed) => {
+                            let _ = self.audio_player.player.set_speed(speed);
                         },
                     }
                 },

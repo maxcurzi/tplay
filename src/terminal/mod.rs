@@ -26,6 +26,15 @@ enum State {
     Stopped,
 }
 
+/// Default seek step in seconds for arrow key navigation.
+const SEEK_STEP_SECONDS: f64 = 5.0;
+/// Speed adjustment step for playback speed controls.
+const SPEED_STEP: f64 = 0.25;
+/// Minimum playback speed.
+const MIN_SPEED: f64 = 0.25;
+/// Maximum playback speed.
+const MAX_SPEED: f64 = 4.0;
+
 /// The `Terminal` struct handles the display of the animation in the terminal and
 /// user input events.
 pub struct Terminal {
@@ -43,6 +52,8 @@ pub struct Terminal {
     tx_control: Sender<MediaControl>,
     /// Whether to use grayscale colors.
     use_grayscale: bool,
+    /// Current playback speed multiplier (1.0 = normal).
+    current_speed: f64,
 }
 
 impl Terminal {
@@ -71,6 +82,7 @@ impl Terminal {
             rx_buffer,
             tx_control,
             use_grayscale,
+            current_speed: 1.0,
         }
     }
 
@@ -279,6 +291,40 @@ impl Terminal {
                 ..
             }) => {
                 self.send_control(MediaControl::MuteUnmute)?;
+            }
+
+            // Seek forward (right arrow)
+            Event::Key(KeyEvent {
+                code: KeyCode::Right,
+                ..
+            }) => {
+                self.send_control(MediaControl::Seek(SEEK_STEP_SECONDS))?;
+            }
+
+            // Seek backward (left arrow)
+            Event::Key(KeyEvent {
+                code: KeyCode::Left,
+                ..
+            }) => {
+                self.send_control(MediaControl::Seek(-SEEK_STEP_SECONDS))?;
+            }
+
+            // Increase playback speed 
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('>'),
+                ..
+            }) => {
+                self.current_speed = (self.current_speed + SPEED_STEP).min(MAX_SPEED);
+                self.send_control(MediaControl::SetSpeed(self.current_speed))?;
+            }
+
+            // Decrease playback speed
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('<'),
+                ..
+            }) => {
+                self.current_speed = (self.current_speed - SPEED_STEP).max(MIN_SPEED);
+                self.send_control(MediaControl::SetSpeed(self.current_speed))?;
             }
 
             _ => {}
