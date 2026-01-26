@@ -192,10 +192,7 @@ git clone https://github.com/maxcurzi/tplay.git
 cd tplay
 
 # (optional) Build the project
-cargo build --release --no-default-features --features mpv_0_35
-# or 
-cargo build --release --no-default-features --features mpv_0_34
-
+cargo build --release
 
 # (optional) Run the tests
 cargo test
@@ -205,17 +202,17 @@ cargo run --release -- <media> [options]
 ```
 
 ## Feature flags
-By default, the crate uses [rodio](https://crates.io/crates/rodio) for audio playback. If you wish to use MPV (libmpv1 libmpv1-dev) as an audio playback backend, you can build/install the crate with:
+By default, the crate uses MPV (`libmpv-dev`) for audio playback with full feature support (speed control, subtitles).
 
-`--features="mpv_0_35" --no-default-features`
+For MPV 0.34 instead of 0.35+:
+```bash
+cargo build --release --no-default-features --features mpv_0_34
+```
 
-or
-
-`--features="mpv_0_34" --no-default-features`
-
-within `cargo build`, `cargo run`, or `cargo install` commands.
-
-MPV support may be dropped in future releases.
+Alternative rodio backend (no speed control, no subtitles):
+```bash
+cargo build --release --no-default-features --features rodio_audio
+```
 
 # Usage
 `tplay <media> [options]`
@@ -269,34 +266,25 @@ tplay /dev/video0
 - `g` - toggle grayscale/color
 - `m` - toggle mute/unmute
 - `←` / `→` - seek backward/forward 5 seconds
-- `[` / `]` - decrease/increase playback speed by 0.25x (requires MPV backend, see below)
-- `,` / `.` - decrease/increase playback speed by 0.1x (fine control, requires MPV backend)
-- `\` - reset playback speed to 1.0x (requires MPV backend)
-- `c` - cycle through subtitle tracks (MPV backend only)
+- `[` / `]` - decrease/increase playback speed by 0.25x
+- `,` / `.` - decrease/increase playback speed by 0.1x (fine control)
+- `\` - reset playback speed to 1.0x
+- `c` - cycle through subtitle tracks
 - `C` (Shift+c) - toggle subtitles on/off
 - `q` - quit
 
-# Playback Speed Control (MPV Backend Required)
-Playback speed control with pitch preserving audio is only available when using the MPV audio backend. 
+# Playback Speed Control
+Speed range: 0.5x to 2.0x with pitch-preserving audio.
+- `[` / `]` - 0.25x adjustments
+- `,` / `.` - 0.1x fine adjustments  
+- `\` - reset to 1.0x
 
-To enable speed control, build with MPV support:
-```bash
-# For MPV 0.35+ (recommended)
-cargo build --release --no-default-features --features="mpv_0_35"
-
-# For MPV 0.34
-cargo build --release --no-default-features --features="mpv_0_34"
-```
-
-Then use the speed control keys:
-- `[` and `]` for 0.25x adjustments (0.5x -> 0.75x -> 1.0x -> 1.25x -> ... -> 2.0x)
-- `,` and `.` for fine 0.1x adjustments
-- `\` to reset to normal speed (1.0x)
-
-**Note:** The default build uses the rodio audio backend which does **not** support speed control.
+**Note:** Requires MPV backend (default). Rodio backend does not support speed control.
 
 # Subtitle Support
-Subtitles appear at the bottom of the terminal when available. MPV audio backend is needed in this feature (non-rodio). Subtitles are automatically loaded from embedded subtitles. Use `c` to cycle between available subtitle tracks and `Shift+C` to toggle visibility.
+Subtitles appear at the bottom of the terminal. Use `c` to cycle tracks and `Shift+C` to toggle visibility.
+
+**Note:** Requires MPV backend (default). Rodio backend does not support subtitles.
 
 # Known Issues
 - Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) for great performance.
