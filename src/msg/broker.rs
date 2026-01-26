@@ -32,8 +32,14 @@ pub enum Control {
     SetGrayscale(bool),
     /// Command to seek forward or backward by the specified number of seconds.
     Seek(f64),
-    /// Command to adjust the playback speed.
-    SetSpeed(f64),
+    /// Command to cycle through available subtitle tracks.
+    CycleSubtitle,
+    /// Command to toggle subtitle visibility on/off.
+    ToggleSubtitle,
+    /// Command to adjust playback speed by a relative amount (e.g., +0.1, -0.25).
+    AdjustSpeed(f64),
+    /// Command to reset playback speed to 1.0x.
+    ResetSpeed,
 }
 
 type BrokerControl = Control;
@@ -137,12 +143,24 @@ impl MessageBroker {
                                 let _ = tx.send(AudioControl::Seek(seconds));
                             }
                         }
-                        Ok(BrokerControl::SetSpeed(speed)) => {
-                            if let Some(tx) = &self.tx_channel_pipeline {
-                                let _ = tx.send(PipelineControl::SetSpeed(speed));
-                            }
+                        Ok(BrokerControl::CycleSubtitle) => {
                             if let Some(tx) = &self.tx_channel_audio {
-                                let _ = tx.send(AudioControl::SetSpeed(speed));
+                                let _ = tx.send(AudioControl::CycleSubtitle);
+                            }
+                        }
+                        Ok(BrokerControl::ToggleSubtitle) => {
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::ToggleSubtitle);
+                            }
+                        }
+                        Ok(BrokerControl::AdjustSpeed(delta)) => {
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::AdjustSpeed(delta));
+                            }
+                        }
+                        Ok(BrokerControl::ResetSpeed) => {
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::ResetSpeed);
                             }
                         }
                         Err(_) => {

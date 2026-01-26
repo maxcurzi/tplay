@@ -104,8 +104,7 @@ impl FrameIterator {
             }
             FrameIterator::Video(ref mut video) => {
                 for _ in 0..n {
-                    let mut frame = Mat::default();
-                    if !video.read(&mut frame).unwrap_or(false) || frame.empty() {
+                    if !video.grab().unwrap_or(false) {
                         break;
                     }
                 }
@@ -168,10 +167,7 @@ impl FrameIterator {
     /// `true` if the seek was successful or partially successful, `false` otherwise.
     pub fn seek_seconds(&mut self, seconds: f64, fps: f64) -> bool {
         match self {
-            FrameIterator::Image(_) => {
-                // For a single image, seeking is a no-op
-                false
-            }
+            FrameIterator::Image(_) => false,
             FrameIterator::Video(ref mut video) => {
                 // Get current position in milliseconds
                 let current_ms = video
@@ -195,6 +191,32 @@ impl FrameIterator {
                 *current_frame = new_frame;
                 true
             }
+        }
+    }
+
+    pub fn seek_to_frame(&mut self, target_frame: usize) {
+        match self {
+            FrameIterator::Image(_) => {}
+            FrameIterator::Video(ref mut video) => {
+                let _ = video.set(opencv::videoio::CAP_PROP_POS_FRAMES, target_frame as f64);
+            }
+            FrameIterator::AnimatedImage {
+                ref mut current_frame,
+                frames,
+            } => {
+                *current_frame = target_frame.min(frames.len().saturating_sub(1));
+            }
+        }
+    }
+
+    /// Returns the current frame index (0-based) that will be read next.
+    pub fn get_position_frames(&self) -> i64 {
+        match self {
+            FrameIterator::Image(_) => 0,
+            FrameIterator::Video(video) => {
+                video.get(opencv::videoio::CAP_PROP_POS_FRAMES).unwrap_or(0.0) as i64
+            }
+            FrameIterator::AnimatedImage { current_frame, .. } => *current_frame as i64,
         }
     }
 }

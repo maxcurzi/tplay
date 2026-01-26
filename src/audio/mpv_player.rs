@@ -2,11 +2,14 @@
 use crate::audio::player::AudioPlayerControls;
 use crate::common::errors::MyError;
 use libmpv::Mpv;
+use std::time::Duration;
 
 /// The AudioPlayer struct handles audio playback using the libmpv backend.
 pub struct MpvAudioPlayer {
     /// The mpv instance responsible for managing the audio playback.
     mpv: Mpv,
+    /// Current playback speed multiplier (1.0 = normal speed).
+    current_speed: f64,
 }
 
 impl MpvAudioPlayer {
@@ -30,13 +33,20 @@ impl MpvAudioPlayer {
                 err
             ))
         })?;
+        // Enable pitch-preserving time-stretching (scaletempo2 is MPV's default)
+        mpv.set_property("audio-pitch-correction", "yes").map_err(|err| {
+            MyError::Audio(format!(
+                "Failed to set audio-pitch-correction property: {:?}",
+                err
+            ))
+        })?;
 
         mpv.command("loadfile", &[input_path])
             .map_err(|err| MyError::Audio(format!("Failed to load audio file: {:?}", err)))?;
         mpv.set_property("pause", true)
             .map_err(|err| MyError::Audio(format!("Failed to set pause property: {:?}", err)))?;
 
-        Ok(Self { mpv })
+        Ok(Self { mpv, current_speed: 1.0 })
     }
 }
 impl AudioPlayerControls for MpvAudioPlayer {
@@ -154,7 +164,30 @@ impl AudioPlayerControls for MpvAudioPlayer {
             .map_err(|err| MyError::Audio(format!("Seek failed: {:?}", err)))
     }
 
-    /// Sets the playback speed multiplier.
+    /// Cycles through available subtitle tracks.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    fn cycle_subtitle(&mut self) -> Result<(), MyError> {
+        self.mpv
+            .command("cycle", &["sub"])
+            .map_err(|err| MyError::Audio(format!("Cycle subtitle failed: {:?}", err)))
+    }
+
+    /// Toggles subtitle visibility on/off.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an `MyError::Audio` error.
+    fn toggle_subtitle(&mut self) -> Result<(), MyError> {
+        let visible: bool = self.mpv.get_property("sub-visibility").unwrap_or(true);
+        self.mpv
+            .set_property("sub-visibility", !visible)
+            .map_err(|err| MyError::Audio(format!("Toggle subtitle failed: {:?}", err)))
+    }
+
+    /// Sets the playback speed multiplier (pitch-preserving via scaletempo2).
     ///
     /// # Arguments
     ///
@@ -164,9 +197,29 @@ impl AudioPlayerControls for MpvAudioPlayer {
     ///
     /// A `Result` indicating success or an `MyError::Audio` error.
     fn set_speed(&mut self, speed: f64) -> Result<(), MyError> {
-        let clamped_speed = speed.clamp(0.25, 4.0);
+        let clamped_speed = speed.clamp(0.5, 2.0);
         self.mpv
             .set_property("speed", clamped_speed)
-            .map_err(|err| MyError::Audio(format!("Set speed failed: {:?}", err)))
+            .map_err(|err| MyError::Audio(format!("Set speed failed: {:?}", err)))?;
+        self.current_speed = clamped_speed;
+        Ok(())
+    }
+
+    /// Gets the current playback speed multiplier.
+    ///
+    /// # Returns
+    ///
+    /// The current speed multiplier.
+    fn get_speed(&self) -> f64 {
+        self.current_speed
+    }
+
+    fn get_subtitle_text(&self) -> Option<String> {
+        self.mpv.get_property::<String>("sub-text").ok()
+    }
+
+    fn get_position(&self) -> Duration {
+        let pos: f64 = self.mpv.get_property("time-pos").unwrap_or(0.0);
+        Duration::from_secs_f64(pos.max(0.0))
     }
 }

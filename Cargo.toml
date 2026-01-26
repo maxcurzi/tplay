@@ -48,6 +48,7 @@ ffmpeg-next = "7.1.0"
 crossbeam-channel = "0.5"
 num = "0.4"
 either = "1.8"
+serde = { version = "1.0", features = ["derive"] }
 libmpv = { version = "2.0.1", optional = true } # MPV 0.34
 libmpv-sirno = { version = "2.0.2-fork.1", optional = true } # Temporary fix for MPV 0.35 (and probably later)
 rodio = { version = "0.20.1", optional = true } # Audio playback alternative to mpv

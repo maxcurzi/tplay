@@ -7,11 +7,12 @@ mod common;
 mod downloader;
 mod msg;
 mod pipeline;
+mod subtitle;
 mod terminal;
 
 use audio::runner::Control as AudioControl;
 use clap::Parser;
-use common::errors::*;
+use common::{errors::*, sync::PlaybackClock};
 use crossbeam_channel::{bounded, unbounded};
 use either::Either;
 use msg::broker::Control as MediaControl;
@@ -19,7 +20,10 @@ use pipeline::{
     char_maps::CHARS1, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
     runner::Control as PipelineControl, runner::RunnerOptions,
 };
+use std::path::Path;
+use std::sync::{Arc, RwLock};
 use std::thread;
+use subtitle::{extract_subtitles, SubtitleManager};
 use terminal::Terminal;
 
 pub type StringInfo = (String, Vec<u8>);
@@ -64,7 +68,7 @@ const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
 const DEFAULT_FPS: f64 = 30.0;
 const DEFAULT_BROWSER: &str = "firefox";
 
-use std::sync::{Arc, Barrier};
+use std::sync::Barrier;
 use std::thread::JoinHandle;
 
 struct MediaProcessor {
@@ -105,10 +109,21 @@ impl MediaProcessor {
         gray: bool,
         rx_frames: crossbeam_channel::Receiver<Option<StringInfo>>,
         tx_controls: crossbeam_channel::Sender<MediaControl>,
+        subtitle_text: Option<Arc<RwLock<String>>>,
+        local_subtitles: Option<SubtitleManager>,
+        playback_clock: Option<Arc<PlaybackClock>>,
     ) -> Result<(), MyError> {
         let barrier = Arc::clone(&self.barrier);
         let handle = thread::spawn(move || -> Result<(), MyError> {
-            let mut term = Terminal::new(title, gray, rx_frames, tx_controls);
+            let mut term = Terminal::new(
+                title,
+                gray,
+                rx_frames,
+                tx_controls,
+                subtitle_text,
+                local_subtitles,
+                playback_clock,
+            );
             term.run(barrier)
         });
         self.handles.push(handle);
@@ -123,6 +138,7 @@ impl MediaProcessor {
         tx_frames: crossbeam_channel::Sender<Option<StringInfo>>,
         rx_controls_pipeline: crossbeam_channel::Receiver<PipelineControl>,
         tx_controls: crossbeam_channel::Sender<MediaControl>,
+        playback_clock: Option<Arc<PlaybackClock>>,
     ) -> Result<(), MyError> {
         let barrier = Arc::clone(&self.barrier);
         let mut use_fps = DEFAULT_FPS;
@@ -153,6 +169,7 @@ impl MediaProcessor {
                     loop_playback,
                     auto_exit,
                 },
+                playback_clock,
             );
             runner.run(barrier, allow_frame_skip)
         });
@@ -164,11 +181,13 @@ impl MediaProcessor {
         &mut self,
         file_path: String,
         rx_controls_audio: crossbeam_channel::Receiver<AudioControl>,
+        subtitle_text: Option<Arc<RwLock<String>>>,
+        playback_clock: Option<Arc<PlaybackClock>>,
     ) -> Result<(), MyError> {
         let barrier = Arc::clone(&self.barrier);
         let handle = thread::spawn(move || -> Result<(), MyError> {
             let player = audio::player::AudioPlayer::new(&file_path)?;
-            let mut runner = audio::runner::Runner::new(player, rx_controls_audio);
+            let mut runner = audio::runner::Runner::new(player, rx_controls_audio, subtitle_text, playback_clock);
             runner.run(barrier)
         });
         self.handles.push(handle);
@@ -192,10 +211,23 @@ fn main() -> Result<(), MyError> {
         String::from(DEFAULT_BROWSER)
     };
 
-    let media_data = open_media(title, browser)?;
+    let media_data = open_media(title.clone(), browser)?;
     let media = media_data.frame_iter;
     let fps = media_data.fps;
     let audio = media_data.audio_path;
+
+    let is_local_file = Path::new(&args.input).exists();
+    
+    let local_subtitles = if is_local_file {
+        let tracks = extract_subtitles(Path::new(&args.input));
+        if tracks.is_empty() {
+            None
+        } else {
+            Some(SubtitleManager::new(tracks))
+        }
+    } else {
+        None
+    };
 
     let num_threads = if audio.is_some() { 4 } else { 3 };
 
@@ -212,6 +244,18 @@ fn main() -> Result<(), MyError> {
         None
     };
 
+    let subtitle_text: Option<Arc<RwLock<String>>> = if audio.is_some() {
+        Some(Arc::new(RwLock::new(String::new())))
+    } else {
+        None
+    };
+
+    let playback_clock: Option<Arc<PlaybackClock>> = if audio.is_some() {
+        Some(Arc::new(PlaybackClock::new()))
+    } else {
+        None
+    };
+
     let mut media_processor = MediaProcessor::new(num_threads);
     media_processor.launch_broker_thread(rx_controls, tx_controls_pipeline, tx_controls_audio)?;
 
@@ -220,6 +264,9 @@ fn main() -> Result<(), MyError> {
         args.gray,
         rx_frames,
         tx_controls.clone(),
+        subtitle_text.clone(),
+        local_subtitles,
+        playback_clock.clone(),
     )?;
 
     media_processor.launch_pipeline_thread(
@@ -229,6 +276,7 @@ fn main() -> Result<(), MyError> {
         tx_frames,
         rx_controls_pipeline,
         tx_controls,
+        playback_clock.clone(),
     )?;
 
     if let Some(audio) = &audio {
@@ -239,7 +287,7 @@ fn main() -> Result<(), MyError> {
         } else {
             title
         };
-        media_processor.launch_audio_thread(file_path, rx_controls_audio)?;
+        media_processor.launch_audio_thread(file_path, rx_controls_audio, subtitle_text, playback_clock)?;
     }
 
     media_processor.join_threads();

@@ -57,8 +57,8 @@ This crate is still in early development, but it already has a lot of features. 
 - [x] RGB Colors (on terminals that support RGB colors)
 - [x] Play sounds
 - [x] Spark joy
-- [x] Media controls (seek forward/backward, playback speed)
-- [ ] Subtitles
+- [x] Full media controls (forward, backwards, etc)
+- [x] Subtitles
 - [ ] Replace a fully-fledged media player
 
 ## RGB Colors
@@ -87,7 +87,7 @@ The following dependencies are also required:
 - [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
 - [ffmpeg](https://ffmpeg.org/download.html) Tested with FFmpeg 6.1 (Linux) and 7.x (macOS/Homebrew)
 - Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
-- Optional dependency for audio playback via MPV: [MPV](https://mpv.io/installation/)
+- Optional dependency for MPV audio backend (required for speed control & subtitles): [libmpv-dev](https://mpv.io/installation/) (development libraries)
 
 They can be simply installed on Linux with your package manager. See [below](#prerequisites-installation-on-linux) for more details.
 
@@ -102,7 +102,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install `tplay`'s prerequisite dependencies:
 
 ```bash
-sudo apt install libssl-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp
+sudo apt install libssl-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp libmpv-dev
 ```
 And install OpenCV following this guide https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html.
 Do not install via apt `libopencv-dev` as it's out of date.
@@ -192,7 +192,10 @@ git clone https://github.com/maxcurzi/tplay.git
 cd tplay
 
 # (optional) Build the project
-cargo build
+cargo build --release --no-default-features --features mpv_0_35
+# or 
+cargo build --release --no-default-features --features mpv_0_34
+
 
 # (optional) Run the tests
 cargo test
@@ -266,8 +269,34 @@ tplay /dev/video0
 - `g` - toggle grayscale/color
 - `m` - toggle mute/unmute
 - `←` / `→` - seek backward/forward 5 seconds
-- `<` / `>` - decrease/increase playback speed (0.25x steps, range: 0.25x - 4.0x)
+- `[` / `]` - decrease/increase playback speed by 0.25x (requires MPV backend, see below)
+- `,` / `.` - decrease/increase playback speed by 0.1x (fine control, requires MPV backend)
+- `\` - reset playback speed to 1.0x (requires MPV backend)
+- `c` - cycle through subtitle tracks (MPV backend only)
+- `C` (Shift+c) - toggle subtitles on/off
 - `q` - quit
+
+# Playback Speed Control (MPV Backend Required)
+Playback speed control with pitch preserving audio is only available when using the MPV audio backend. 
+
+To enable speed control, build with MPV support:
+```bash
+# For MPV 0.35+ (recommended)
+cargo build --release --no-default-features --features="mpv_0_35"
+
+# For MPV 0.34
+cargo build --release --no-default-features --features="mpv_0_34"
+```
+
+Then use the speed control keys:
+- `[` and `]` for 0.25x adjustments (0.5x -> 0.75x -> 1.0x -> 1.25x -> ... -> 2.0x)
+- `,` and `.` for fine 0.1x adjustments
+- `\` to reset to normal speed (1.0x)
+
+**Note:** The default build uses the rodio audio backend which does **not** support speed control.
+
+# Subtitle Support
+Subtitles appear at the bottom of the terminal when available. MPV audio backend is needed in this feature (non-rodio). Subtitles are automatically loaded from embedded subtitles. Use `c` to cycle between available subtitle tracks and `Shift+C` to toggle visibility.
 
 # Known Issues
 - Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) for great performance.

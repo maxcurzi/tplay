@@ -3,6 +3,7 @@
 //! audio backend is used). It also defines a trait AudioPlayerControls, which
 //! serves as the interface that audio backends are expected to implement.
 use crate::MyError;
+use std::time::Duration;
 
 #[cfg(not(feature = "rodio_audio"))]
 use super::mpv_player::MpvAudioPlayer as BackendAudioPlayer;
@@ -32,5 +33,13 @@ pub trait AudioPlayerControls {
     fn rewind(&mut self) -> Result<(), MyError>;
     fn toggle_mute(&mut self) -> Result<(), MyError>;
     fn seek(&mut self, seconds: f64) -> Result<(), MyError>;
+    fn cycle_subtitle(&mut self) -> Result<(), MyError>;
+    fn toggle_subtitle(&mut self) -> Result<(), MyError>;
+    fn get_subtitle_text(&self) -> Option<String>;
+    fn get_position(&self) -> Duration;
+    /// Sets the playback speed multiplier (pitch-preserving).
+    /// Speed is clamped to range 0.5 to 2.0.
     fn set_speed(&mut self, speed: f64) -> Result<(), MyError>;
+    /// Gets the current playback speed multiplier.
+    fn get_speed(&self) -> f64;
 }
