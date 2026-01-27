@@ -117,7 +117,7 @@ Minimal setup on macOS using Homebrew. Commands below set the needed env vars, r
 # 1) Install dependencies
 xcode-select -p >/dev/null 2>&1 || xcode-select --install
 brew update
-brew install pkg-config cmake ninja opencv ffmpeg yt-dlp
+brew install pkg-config cmake ninja opencv ffmpeg yt-dlp mpv
 ```
 
 ```bash
