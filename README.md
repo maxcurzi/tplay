@@ -57,8 +57,8 @@ This crate is still in early development, but it already has a lot of features. 
 - [x] RGB Colors (on terminals that support RGB colors)
 - [x] Play sounds
 - [x] Spark joy
-- [ ] Full media controls (forward, backwards, etc)
-- [ ] Subtitles
+- [x] Full media controls (forward, backwards, etc)
+- [x] Subtitles
 - [ ] Replace a fully-fledged media player
 
 ## RGB Colors
@@ -86,8 +86,8 @@ The following dependencies are also required:
 - [OpenCV 4](https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html) Tested with OpenCV 4.6, 4.10, 4.11.
 - [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
 - [ffmpeg](https://ffmpeg.org/download.html) Tested with FFmpeg 6.1 (Linux) and 7.x (macOS/Homebrew)
+- [libmpv-dev](https://mpv.io/installation/) (development libraries for audio playback and subtitles)
 - Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
-- Optional dependency for audio playback via MPV: [MPV](https://mpv.io/installation/)
 
 They can be simply installed on Linux with your package manager. See [below](#prerequisites-installation-on-linux) for more details.
 
@@ -102,7 +102,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install `tplay`'s prerequisite dependencies:
 
 ```bash
-sudo apt install libssl-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp
+sudo apt install libssl-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp libmpv-dev
 ```
 And install OpenCV following this guide https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html.
 Do not install via apt `libopencv-dev` as it's out of date.
@@ -192,7 +192,7 @@ git clone https://github.com/maxcurzi/tplay.git
 cd tplay
 
 # (optional) Build the project
-cargo build
+cargo build --release
 
 # (optional) Run the tests
 cargo test
@@ -202,17 +202,17 @@ cargo run --release -- <media> [options]
 ```
 
 ## Feature flags
-By default, the crate uses [rodio](https://crates.io/crates/rodio) for audio playback. If you wish to use MPV (libmpv1 libmpv1-dev) as an audio playback backend, you can build/install the crate with:
+By default, the crate uses MPV (`libmpv-dev`) for audio playback and subtitles.
 
-`--features="mpv_0_35" --no-default-features`
+For MPV 0.34 instead of 0.35+:
+```bash
+cargo build --release --no-default-features --features mpv_0_34
+```
 
-or
-
-`--features="mpv_0_34" --no-default-features`
-
-within `cargo build`, `cargo run`, or `cargo install` commands.
-
-MPV support may be dropped in future releases.
+Alternative rodio backend (no playback speed control or pitch preserving):
+```bash
+cargo build --release --no-default-features --features rodio_audio
+```
 
 # Usage
 `tplay <media> [options]`
@@ -265,7 +265,26 @@ tplay /dev/video0
 - `space` - toggle pause/unpause
 - `g` - toggle grayscale/color
 - `m` - toggle mute/unmute
+- `←` / `→` - seek backward/forward 5 seconds
+- `[` / `]` - decrease/increase playback speed by 0.25x
+- `,` / `.` - decrease/increase playback speed by 0.1x (fine control)
+- `\` - reset playback speed to 1.0x
+- `c` - cycle through subtitle tracks
+- `C` (Shift+c) - toggle subtitles on/off
 - `q` - quit
+
+# Playback Speed Control
+Speed range: 0.5x to 2.0x with pitch-preserving audio.
+- `[` / `]` - 0.25x adjustments
+- `,` / `.` - 0.1x fine adjustments  
+- `\` - reset to 1.0x
+
+**Note:** Requires MPV backend (default). Rodio backend does not support speed control.
+
+# Subtitle Support
+Subtitles appear at the bottom of the terminal. Use `c` to cycle tracks and `Shift+C` to toggle visibility.
+
+**Note:** Requires MPV backend (default). Rodio backend does not support subtitles.
 
 # Known Issues
 - Videos played through the Konsole terminal may have reduced performance. This is due to the way Konsole handles terminal output. If you experience this issue, try using a different terminal emulator. I recommend [Alacritty](https://alacritty.org/) for great performance.
