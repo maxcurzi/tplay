@@ -28,9 +28,27 @@ use terminal::Terminal;
 
 pub type StringInfo = (String, Vec<u8>);
 
+const AFTER_HELP: &str = "\
+\x1b[1;4mPlayback controls:\x1b[0m
+  0-9           Change character map
+  space         Toggle pause/unpause
+  g             Toggle grayscale/color
+  m             Toggle mute/unmute
+  ← / →         Seek backward/forward 5 seconds
+  q             Quit
+
+\x1b[1;4mSubtitle controls:\x1b[0m
+  c             Cycle through subtitle tracks
+  C (Shift+c)   Toggle subtitles on/off
+
+\x1b[1;4mPlayback Speed Control:\x1b[0m
+  [ / ]         Decrease/increase speed by 0.25x
+  , / .         Decrease/increase speed by 0.1x
+  \\             Reset speed to 1.0x";
+
 /// Command line arguments structure.
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, after_help = AFTER_HELP)]
 struct Args {
     /// Name of the file/stream to process
     #[arg(required = true, index = 1)]

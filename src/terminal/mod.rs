@@ -168,6 +168,7 @@ impl Terminal {
             SetForegroundColor(self.fg_color),
             SetBackgroundColor(self.bg_color),
             MoveTo(0, 0),
+            ResetColor,
         )?;
         stdout().flush()?;
         Ok(())

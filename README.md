@@ -86,8 +86,8 @@ The following dependencies are also required:
 - [OpenCV 4](https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html) Tested with OpenCV 4.6, 4.10, 4.11.
 - [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
 - [ffmpeg](https://ffmpeg.org/download.html) Tested with FFmpeg 6.1 (Linux) and 7.x (macOS/Homebrew)
+- [libmpv-dev](https://mpv.io/installation/) (development libraries for audio playback and subtitles)
 - Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
-- Optional dependency for MPV audio backend (required for speed control & subtitles): [libmpv-dev](https://mpv.io/installation/) (development libraries)
 
 They can be simply installed on Linux with your package manager. See [below](#prerequisites-installation-on-linux) for more details.
 
@@ -202,14 +202,14 @@ cargo run --release -- <media> [options]
 ```
 
 ## Feature flags
-By default, the crate uses MPV (`libmpv-dev`) for audio playback with full feature support (speed control, subtitles).
+By default, the crate uses MPV (`libmpv-dev`) for audio playback and subtitles.
 
 For MPV 0.34 instead of 0.35+:
 ```bash
 cargo build --release --no-default-features --features mpv_0_34
 ```
 
-Alternative rodio backend (no speed control, no subtitles):
+Alternative rodio backend (no playback speed control or pitch preserving):
 ```bash
 cargo build --release --no-default-features --features rodio_audio
 ```
