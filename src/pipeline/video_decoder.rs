@@ -218,24 +218,62 @@ impl VideoDecoder {
     }
 
     /// Seeks to an absolute position in seconds.
+    ///
+    /// After the keyframe seek, decodes and discards frames up to the target
+    /// position so that the next call to `next_frame()` returns the frame at
+    /// (or just past) the requested time — matching the old OpenCV behaviour
+    /// and keeping `current_frame` accurate for A/V sync.
     fn seek_to_seconds(&mut self, target_secs: f64) -> bool {
         // Convert target seconds to stream time_base units
         let target_ts = (target_secs * self.time_base.denominator() as f64
             / self.time_base.numerator() as f64) as i64;
 
-        // Use a range-based seek: allow seeking slightly before target
-        let min_ts = target_ts.saturating_sub(
-            (self.time_base.denominator() as i64) / self.time_base.numerator().max(1) as i64,
-        );
-
-        let result = self.input_ctx.seek(min_ts, ..target_ts).is_ok();
+        // Seek to any position up to (and including) the target timestamp.
+        // avformat_seek_file will land on the nearest keyframe at or before target_ts.
+        let result = self.input_ctx.seek(0, ..target_ts).is_ok();
 
         if result {
             self.decoder.flush();
-            self.current_frame = (target_secs * self.fps).round() as i64;
             self.eof = false;
+
+            // Decode and discard frames until we reach the target timestamp.
+            // This replicates OpenCV's CAP_PROP_POS_MSEC seeking which
+            // internally decodes from the keyframe to the exact target.
+            self.decode_forward_to(target_ts);
         }
         result
+    }
+
+    /// Decode and discard frames until the next frame's PTS reaches `target_ts`.
+    /// Updates `current_frame` from the PTS of the last consumed frame so that
+    /// the position counter stays accurate after a seek.
+    fn decode_forward_to(&mut self, target_ts: i64) {
+        loop {
+            match self.next_video_packet() {
+                Some(packet) => {
+                    if self.decoder.send_packet(&packet).is_err() {
+                        continue;
+                    }
+                    let mut decoded = FfmpegFrame::empty();
+                    while self.decoder.receive_frame(&mut decoded).is_ok() {
+                        let pts = decoded.pts().unwrap_or(0);
+                        // Update current_frame from PTS
+                        let secs = pts as f64 * self.time_base.numerator() as f64
+                            / self.time_base.denominator() as f64;
+                        self.current_frame = (secs * self.fps).round() as i64;
+
+                        if pts >= target_ts {
+                            return;
+                        }
+                    }
+                }
+                None => {
+                    // Hit EOF while decoding forward
+                    self.eof = true;
+                    return;
+                }
+            }
+        }
     }
 
     /// Seeks to a specific frame index (0-based).
