@@ -16,29 +16,37 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
   <p>
 
 - [Terminal Media Player](#terminal-media-player)
-- [Table of Contents](#table-of-contents)
-  - [Who is it for?](#who-is-it-for)
-  - [Features](#features)
+- [Who is it for?](#who-is-it-for)
+- [Features](#features)
+  - [RGB Colors](#rgb-colors)
+  - [Live update when updating character size](#live-update-when-updating-character-size)
+  - [On-the-fly character map selection](#on-the-fly-character-map-selection)
+  - [Dynamic resize](#dynamic-resize)
+  - [Emojis](#emojis)
+  - [Webcam support](#webcam-support)
 - [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-    - [Linux](#prerequisites-installation-on-ubuntu-linux)
-    - [macOS](#prerequisites-installation-on-macos-homebrew)
-    - [Windows](#prerequisites-installation-on-windows)
-  - [Installation](#installation)
-    - [For users](#for-users)
-      - [Arch Linux](#arch-linux)
-      - [NixOS](#nixos)
-      - [Other Distros](#other-distros)
-      - [Install Using Cargo](#install-using-cargo)
-    - [For developers](#for-developers)
-    - [Feature flags](#feature-flags)
+- [Prerequisites](#prerequisites)
+  - [Prerequisites Installation on Ubuntu Linux](#prerequisites-installation-on-ubuntu-linux)
+  - [Prerequisites Installation on macOS (Homebrew)](#prerequisites-installation-on-macos-homebrew)
+  - [Prerequisites installation on Windows](#prerequisites-installation-on-windows)
+- [Installation](#installation)
+  - [For users](#for-users)
+    - [Arch Linux](#arch-linux)
+    - [NixOS](#nixos)
+    - [Other Distros](#other-distros)
+    - [Install Using Cargo](#install-using-cargo)
+  - [For developers](#for-developers)
+  - [Feature flags](#feature-flags)
 - [Usage](#usage)
+- [Playback commands](#playback-commands)
+- [Playback Speed Control](#playback-speed-control)
+- [Subtitle Support](#subtitle-support)
+- [Known Issues](#known-issues)
+- [Alternatives](#alternatives)
 - [Contributing](#contributing)
 - [License](#license)
-- [Why](#why)
+- [Why?](#why)
 - [Credits](#credits)
-
-  </p>
 </details>
 
 # Who is it for?
@@ -83,9 +91,7 @@ These instructions will get you a copy of the project up and running on your loc
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
-- [OpenCV 4](https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html) Tested with OpenCV 4.6, 4.10, 4.11.
-- [LLVM](https://github.com/llvm/llvm-project/releases/tag/llvmorg-16.0.0)
-- [ffmpeg](https://ffmpeg.org/download.html) Tested with FFmpeg 6.1 (Linux) and 7.x (macOS/Homebrew)
+- [FFmpeg](https://ffmpeg.org/download.html) (development libraries) — Tested with FFmpeg 6.1 (Linux) and 7.x (macOS/Homebrew)
 - [libmpv-dev](https://mpv.io/installation/) (development libraries for audio playback and subtitles)
 - Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
@@ -102,12 +108,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install `tplay`'s prerequisite dependencies:
 
 ```bash
-sudo apt install libssl-dev libstdc++-12-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev yt-dlp libmpv-dev
+sudo apt install libssl-dev ffmpeg libavfilter-dev libavdevice-dev libavformat-dev libavcodec-dev libswscale-dev libasound2-dev yt-dlp libmpv-dev clang
 ```
-And install OpenCV following this guide https://docs.opencv.org/4.11.0/d7/d9f/tutorial_linux_install.html.
-Do not install via apt `libopencv-dev` as it's out of date.
-Note, I tested this by building openCV from source in the guide above, and at the end I invoked `sudo make install`. The guide doesn't recommend that and you may want to use an alternative method, but this is how I installed it.
-After installing OpenCV from source you may also need to add the folder where you built OpenCV to LD_LIBRARY_PATH, for example: `export LD_LIBRARY_PATH=/home/<your user>/build/lib:$LD_LIBRARY_PATH`
 
 ## Prerequisites Installation on macOS (Homebrew)
 
@@ -117,20 +119,17 @@ Minimal setup on macOS using Homebrew. Commands below set the needed env vars, r
 # 1) Install dependencies
 xcode-select -p >/dev/null 2>&1 || xcode-select --install
 brew update
-brew install pkg-config cmake ninja opencv ffmpeg yt-dlp mpv
+brew install pkg-config cmake ffmpeg yt-dlp mpv
 ```
 
 ```bash
-# 2) Session-only exports so pkg-config can find FFmpeg/OpenCV
-export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$(brew --prefix ffmpeg)/lib/pkgconfig:$(brew --prefix opencv)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-export OPENCV_INCLUDE_PATHS="$(brew --prefix opencv)/include/opencv4"
-export OPENCV_LINK_PATHS="$(brew --prefix opencv)/lib"
+# 2) Session-only exports so pkg-config can find FFmpeg
+export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$(brew --prefix ffmpeg)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 ```
 
 ```bash
 # 3) Quick checks (should print versions)
 pkg-config --modversion libavutil
-pkg-config --modversion opencv4
 ```
 
 ```bash
@@ -149,7 +148,7 @@ PKG_CONFIG_PATH="$(brew --prefix ffmpeg@7)/lib/pkgconfig:$PKG_CONFIG_PATH" cargo
 ```
 
 ## Prerequisites installation on Windows
-The crate can run on Windows and all prerequisites (opencv, ffmpeg) can be installed with vcpkg. However, the installation/setup process is lengthy and prone to errors. Performance is also very poor. Save yourself a headache: use WSL and follow the [Linux instructions](#prerequisites-installation-on-linux).
+The crate can run on Windows and all prerequisites (ffmpeg) can be installed with vcpkg. However, the installation/setup process is lengthy and prone to errors. Performance is also very poor. Save yourself a headache: use WSL and follow the [Linux instructions](#prerequisites-installation-on-linux).
 
 # Installation
 
@@ -300,7 +299,6 @@ https://github.com/search?q=ascii+player&type=repositories
 Contributions are welcome! Please open an issue or submit a pull request.
 Some ideas:
 - Reduce external dependencies and streamline the installation process.
-- Investigate migration from OpenCV to FFmpeg.
 - More media controls (jump forward, jump backwards, loop, etc.).
 - Testing and feedback on installing and running it on other OSes.
 - Let me know if you have any other ideas!

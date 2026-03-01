@@ -37,8 +37,8 @@ impl From<io::Error> for MyError {
     }
 }
 
-impl From<opencv::Error> for MyError {
-    fn from(error: opencv::Error) -> Self {
+impl From<ffmpeg_next::Error> for MyError {
+    fn from(error: ffmpeg_next::Error) -> Self {
         MyError::Application(format!("{error}"))
     }
 }

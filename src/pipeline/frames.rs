@@ -7,12 +7,12 @@ use crate::{
     audio::utils::has_audio,
     common::{errors::*, utils::*},
     downloader::youtube,
+    pipeline::video_decoder::VideoDecoder,
 };
 use either::Either;
 use gif;
 use image::{DynamicImage, ImageReader};
 use libwebp_sys as webp;
-use opencv::{prelude::*, videoio::VideoCapture};
 use std::{
     fs::File,
     io::{Read, Write},
@@ -30,12 +30,12 @@ use url::Url;
 ///
 /// * `Image` - Represents a single-frame static image. Contains an
 ///   `Option<DynamicImage>`.
-/// * `Video` - Represents a video file. Contains a `VideoCapture` object.
+/// * `Video` - Represents a video file. Contains a `VideoDecoder` object.
 /// * `AnimatedGif` - Represents an animated GIF file. Contains a vector of
 ///   `DynamicImage` frames and the index of the current frame.
 pub enum FrameIterator {
     Image(Option<DynamicImage>),
-    Video(VideoCapture),
+    Video(VideoDecoder),
     AnimatedImage {
         frames: Vec<DynamicImage>,
         current_frame: usize,
@@ -70,7 +70,7 @@ impl Iterator for FrameIterator {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             FrameIterator::Image(ref mut img) => img.take(),
-            FrameIterator::Video(ref mut video) => capture_video_frame(video),
+            FrameIterator::Video(ref mut video) => video.next_frame(),
             FrameIterator::AnimatedImage {
                 ref frames,
                 ref mut current_frame,
@@ -103,11 +103,7 @@ impl FrameIterator {
                 // For a single image, skipping is a no-op, since there's only one frame
             }
             FrameIterator::Video(ref mut video) => {
-                for _ in 0..n {
-                    if !video.grab().unwrap_or(false) {
-                        break;
-                    }
-                }
+                video.skip_frames(n);
             }
             FrameIterator::AnimatedImage {
                 ref mut current_frame,
@@ -124,7 +120,7 @@ impl FrameIterator {
                 // For a single image, reset is a no-op, since there's only one frame
             }
             FrameIterator::Video(ref mut video) => {
-                let _ = video.set(opencv::videoio::CAP_PROP_POS_AVI_RATIO, 0.0);
+                video.reset();
             }
             FrameIterator::AnimatedImage {
                 ref mut current_frame,
@@ -143,14 +139,11 @@ impl FrameIterator {
     pub fn is_at_end(&self) -> bool {
         match self {
             FrameIterator::Image(img) => img.is_none(),
-            FrameIterator::Video(video) => {
-                // Check if we're at or past the end of the video
-                let pos = video.get(opencv::videoio::CAP_PROP_POS_AVI_RATIO).unwrap_or(0.0);
-                pos >= 1.0
-            }
-            FrameIterator::AnimatedImage { frames, current_frame } => {
-                *current_frame >= frames.len()
-            }
+            FrameIterator::Video(video) => video.is_at_end(),
+            FrameIterator::AnimatedImage {
+                frames,
+                current_frame,
+            } => *current_frame >= frames.len(),
         }
     }
 
@@ -168,16 +161,7 @@ impl FrameIterator {
     pub fn seek_seconds(&mut self, seconds: f64, fps: f64) -> bool {
         match self {
             FrameIterator::Image(_) => false,
-            FrameIterator::Video(ref mut video) => {
-                // Get current position in milliseconds
-                let current_ms = video
-                    .get(opencv::videoio::CAP_PROP_POS_MSEC)
-                    .unwrap_or(0.0);
-                let target_ms = (current_ms + seconds * 1000.0).max(0.0);
-                video
-                    .set(opencv::videoio::CAP_PROP_POS_MSEC, target_ms)
-                    .unwrap_or(false)
-            }
+            FrameIterator::Video(ref mut video) => video.seek_seconds(seconds),
             FrameIterator::AnimatedImage {
                 ref mut current_frame,
                 frames,
@@ -198,7 +182,7 @@ impl FrameIterator {
         match self {
             FrameIterator::Image(_) => {}
             FrameIterator::Video(ref mut video) => {
-                let _ = video.set(opencv::videoio::CAP_PROP_POS_FRAMES, target_frame as f64);
+                video.seek_to_frame(target_frame);
             }
             FrameIterator::AnimatedImage {
                 ref mut current_frame,
@@ -213,9 +197,7 @@ impl FrameIterator {
     pub fn get_position_frames(&self) -> i64 {
         match self {
             FrameIterator::Image(_) => 0,
-            FrameIterator::Video(video) => {
-                video.get(opencv::videoio::CAP_PROP_POS_FRAMES).unwrap_or(0.0) as i64
-            }
+            FrameIterator::Video(video) => video.get_position_frames(),
             FrameIterator::AnimatedImage { current_frame, .. } => *current_frame as i64,
         }
     }
@@ -338,28 +320,6 @@ fn open_media_from_path(path_str: &str, path: &Path) -> Result<MediaData, MyErro
     }
 }
 
-/// Captures the next video frame as a dynamic image.
-///
-/// This helper function reads the next frame from the provided video and converts it into a
-/// `DynamicImage`.
-///
-/// # Arguments
-///
-/// * `video` - A mutable reference to a `VideoCapture` object.
-///
-/// # Returns
-///
-/// An `Option` containing a `DynamicImage` if the frame is successfully captured and
-/// converted, or `None` if an error occurs or the video has ended.
-fn capture_video_frame(video: &mut VideoCapture) -> Option<DynamicImage> {
-    let mut frame = Mat::default();
-    if video.read(&mut frame).unwrap_or(false) && !frame.empty() {
-        mat_to_dynamic_image(&frame)
-    } else {
-        None
-    }
-}
-
 /// Writes the content downloaded from a url to a file.
 ///
 //
@@ -424,16 +384,11 @@ fn open_image(path: &Path) -> Result<FrameIterator, MyError> {
 /// A `Result` containing a `FrameIterator` if the video file is successfully opened, or a
 /// `MyError` if an error occurs.
 fn open_video(path: &Path) -> Result<FrameIterator, MyError> {
-    let video = VideoCapture::from_file(
-        path.to_str().expect(ERROR_OPENING_VIDEO),
-        opencv::videoio::CAP_ANY,
-    )?;
-
-    if video.is_opened()? {
-        Ok(FrameIterator::Video(video))
-    } else {
-        Err(MyError::Application(ERROR_OPENING_VIDEO.to_string()))
-    }
+    let path_str = path
+        .to_str()
+        .ok_or_else(|| MyError::Application(ERROR_OPENING_VIDEO.to_string()))?;
+    let decoder = VideoDecoder::open(path_str)?;
+    Ok(FrameIterator::Video(decoder))
 }
 
 /// Opens the specified animated GIF file and returns a `FrameIterator`.
@@ -576,9 +531,7 @@ mod tests {
     #[test]
     fn test_animated_image_seek_forward() {
         // Create a mock animated image with 100 frames
-        let frames: Vec<DynamicImage> = (0..100)
-            .map(|_| DynamicImage::new_rgb8(1, 1))
-            .collect();
+        let frames: Vec<DynamicImage> = (0..100).map(|_| DynamicImage::new_rgb8(1, 1)).collect();
         let mut frame_iter = FrameIterator::AnimatedImage {
             frames,
             current_frame: 0,
@@ -598,9 +551,7 @@ mod tests {
     #[test]
     fn test_animated_image_seek_backward() {
         // Create a mock animated image with 100 frames
-        let frames: Vec<DynamicImage> = (0..100)
-            .map(|_| DynamicImage::new_rgb8(1, 1))
-            .collect();
+        let frames: Vec<DynamicImage> = (0..100).map(|_| DynamicImage::new_rgb8(1, 1)).collect();
         let mut frame_iter = FrameIterator::AnimatedImage {
             frames,
             current_frame: 50,
@@ -620,9 +571,7 @@ mod tests {
     #[test]
     fn test_animated_image_seek_wraps_around() {
         // Create a mock animated image with 100 frames
-        let frames: Vec<DynamicImage> = (0..100)
-            .map(|_| DynamicImage::new_rgb8(1, 1))
-            .collect();
+        let frames: Vec<DynamicImage> = (0..100).map(|_| DynamicImage::new_rgb8(1, 1)).collect();
         let mut frame_iter = FrameIterator::AnimatedImage {
             frames,
             current_frame: 10,
@@ -653,10 +602,8 @@ mod tests {
     #[test]
     fn test_animated_image_is_at_end() {
         // Create a mock animated image with 10 frames
-        let frames: Vec<DynamicImage> = (0..10)
-            .map(|_| DynamicImage::new_rgb8(1, 1))
-            .collect();
-        
+        let frames: Vec<DynamicImage> = (0..10).map(|_| DynamicImage::new_rgb8(1, 1)).collect();
+
         // At the start, not at end
         let frame_iter = FrameIterator::AnimatedImage {
             frames: frames.clone(),

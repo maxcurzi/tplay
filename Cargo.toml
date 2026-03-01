@@ -1,6 +1,6 @@
 [package]
 name = "tplay"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 authors = ["Max Curzi <massimiliano.curzi@gmail.com>"]
 description = "A media player that visualizes images and videos as ASCII art directly in the terminal (with sound)."
@@ -21,6 +21,11 @@ exclude = [
     "Cargo.lock",
     "Cargo.toml.orig",
     "Makefile.toml",
+    "*.mkv",
+    "*.mp4",
+    "*.mov",
+    "*.patch",
+    "*.xml",
 ]
 default-run = "tplay"
 
@@ -33,11 +38,6 @@ gif = "0.13.1"
 gif-dispose = "5.0.0-beta.2"
 libwebp-sys = "0.11"
 image = "0.25"
-opencv = { version = "0.94.2", default-features = false, features = [
-    "videoio",
-    "imgproc",
-    "clang-runtime",
-] }
 thiserror = "2.0"
 fast_image_resize = "5.0.0"
 youtube_dl = "0.10"
@@ -60,7 +60,7 @@ path = "src/main.rs"
 
 [package.metadata.deb]
 maintainer = "Max Curzi <massimiliano.curzi@gmail.com>"
-depends = "libopencv-dev clang libclang-dev ffmpeg libavfilter-dev libavdevice-dev libasound2-dev"
+depends = "ffmpeg libavfilter-dev libavdevice-dev libasound2-dev"
 
 [package.metadata.features]
 mpv_0_34 = []

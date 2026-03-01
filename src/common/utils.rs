@@ -1,6 +1,4 @@
-use image::{DynamicImage, ImageBuffer};
 use num::{Rational64, ToPrimitive};
-use opencv::{core::AlgorithmHint, imgproc, prelude::*};
 use serde_json::Value;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
@@ -45,50 +43,5 @@ pub fn extract_fps(video_path: &str) -> Option<f64> {
         }
     }
 
-    None
-}
-
-/// Converts an opencv Mat frame to a dynamic image.
-///
-/// This helper function takes a reference to a video frame in BGR format and returns an optional
-/// `DynamicImage`.
-///
-/// # Arguments
-///
-/// * `mat` - A reference to a `Mat` object containing the video frame.
-///
-/// # Returns
-///
-/// An `Option` containing a `DynamicImage` if the frame is successfully converted, or
-/// `None` if an error occurs.
-pub fn mat_to_dynamic_image(mat: &Mat) -> Option<DynamicImage> {
-    let mut rgb_mat = Mat::default();
-    if imgproc::cvt_color(
-        &mat,
-        &mut rgb_mat,
-        imgproc::COLOR_BGR2RGB,
-        0,
-        AlgorithmHint::ALGO_HINT_DEFAULT,
-    )
-    .is_ok()
-    {
-        if let Ok(_elem_size) = rgb_mat.elem_size() {
-            if let Ok(size) = rgb_mat.size() {
-                let reshaped_mat = rgb_mat.reshape(1, size.width * size.height).ok()?;
-                let data_vec: Vec<u8> = reshaped_mat
-                    .data_typed::<u8>()
-                    .expect("Unexpected invalid data")
-                    .to_vec();
-
-                if let Some(img_buf) = ImageBuffer::<image::Rgb<u8>, _>::from_raw(
-                    size.width as u32,
-                    size.height as u32,
-                    data_vec,
-                ) {
-                    return Some(DynamicImage::ImageRgb8(img_buf));
-                }
-            }
-        }
-    }
     None
 }

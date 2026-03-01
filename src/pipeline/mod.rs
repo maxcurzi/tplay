@@ -9,3 +9,4 @@ pub mod char_maps;
 pub mod frames;
 pub mod image_pipeline;
 pub mod runner;
+pub mod video_decoder;
