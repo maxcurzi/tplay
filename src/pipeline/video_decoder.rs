@@ -267,3 +267,170 @@ fn frame_to_image(frame: &FfmpegFrame) -> Option<DynamicImage> {
 
     ImageBuffer::<Rgb<u8>, _>::from_raw(width, height, pixels).map(DynamicImage::ImageRgb8)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+    use tempfile::NamedTempFile;
+
+    /// Creates a tiny synthetic test video (10 frames, 16x16, 10fps, red solid color).
+    /// Returns a NamedTempFile that keeps the file alive for the duration of the test.
+    fn create_test_video() -> NamedTempFile {
+        let tmp = tempfile::Builder::new()
+            .suffix(".mp4")
+            .tempfile()
+            .expect("Failed to create temp file");
+        let path = tmp.path().to_str().unwrap().to_string();
+
+        let status = Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-f", "lavfi",
+                "-i", "color=c=red:s=16x16:r=10:d=1",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-t", "1",
+                &path,
+            ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .expect("Failed to run ffmpeg to create test video");
+
+        assert!(status.success(), "ffmpeg failed to create test video");
+        tmp
+    }
+
+    #[test]
+    fn test_open_invalid_path_returns_error() {
+        let result = VideoDecoder::open("/nonexistent/path/to/video.mp4");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_open_valid_video() {
+        let tmp = create_test_video();
+        let decoder = VideoDecoder::open(tmp.path().to_str().unwrap());
+        assert!(decoder.is_ok());
+        let decoder = decoder.unwrap();
+        assert!(decoder.fps() > 0.0);
+        assert!(!decoder.is_at_end());
+        assert_eq!(decoder.get_position_frames(), 0);
+    }
+
+    #[test]
+    fn test_next_frame_returns_valid_image() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        let frame = decoder.next_frame();
+        assert!(frame.is_some());
+        let img = frame.unwrap();
+        assert_eq!(img.width(), 16);
+        assert_eq!(img.height(), 16);
+        assert_eq!(decoder.get_position_frames(), 1);
+    }
+
+    #[test]
+    fn test_next_frame_rgb_values() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        let frame = decoder.next_frame().unwrap();
+        let rgb = frame.to_rgb8();
+        let pixel = rgb.get_pixel(8, 8);
+        // Red video: R should be high, G and B should be low
+        // (not exact 255/0/0 due to YUV420 conversion, but clearly red)
+        assert!(pixel[0] > 200, "Red channel should be high, got {}", pixel[0]);
+        assert!(pixel[1] < 50, "Green channel should be low, got {}", pixel[1]);
+        assert!(pixel[2] < 50, "Blue channel should be low, got {}", pixel[2]);
+    }
+
+    #[test]
+    fn test_skip_frames_advances_position() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        decoder.skip_frames(3);
+        assert_eq!(decoder.get_position_frames(), 3);
+    }
+
+    #[test]
+    fn test_eof_after_all_frames() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        // Exhaust all frames (10fps * 1s = ~10 frames)
+        while decoder.next_frame().is_some() {}
+        assert!(decoder.is_at_end());
+        assert!(decoder.next_frame().is_none());
+    }
+
+    #[test]
+    fn test_reset_returns_to_start() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        // Read a few frames
+        for _ in 0..5 {
+            decoder.next_frame();
+        }
+        assert!(decoder.get_position_frames() > 0);
+
+        decoder.reset();
+        assert_eq!(decoder.get_position_frames(), 0);
+        assert!(!decoder.is_at_end());
+
+        // Should be able to read frames again
+        let frame = decoder.next_frame();
+        assert!(frame.is_some());
+    }
+
+    #[test]
+    fn test_seek_seconds_forward() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        let result = decoder.seek_seconds(0.5);
+        assert!(result);
+        assert!(!decoder.is_at_end());
+        // Should be able to read a frame after seeking
+        let frame = decoder.next_frame();
+        assert!(frame.is_some());
+    }
+
+    #[test]
+    fn test_seek_seconds_backward_clamps_to_zero() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        // Read some frames first
+        for _ in 0..5 {
+            decoder.next_frame();
+        }
+        // Seek backward further than current position
+        let result = decoder.seek_seconds(-100.0);
+        assert!(result);
+        assert_eq!(decoder.get_position_frames(), 0);
+    }
+
+    #[test]
+    fn test_seek_to_frame() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        decoder.seek_to_frame(5);
+        assert!(!decoder.is_at_end());
+        let frame = decoder.next_frame();
+        assert!(frame.is_some());
+    }
+
+    #[test]
+    fn test_reset_after_eof() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        // Exhaust all frames
+        while decoder.next_frame().is_some() {}
+        assert!(decoder.is_at_end());
+
+        // Reset and verify we can play again
+        decoder.reset();
+        assert!(!decoder.is_at_end());
+        assert_eq!(decoder.get_position_frames(), 0);
+        let frame = decoder.next_frame();
+        assert!(frame.is_some());
+    }
+}
