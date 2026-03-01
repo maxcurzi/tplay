@@ -299,7 +299,6 @@ https://github.com/search?q=ascii+player&type=repositories
 Contributions are welcome! Please open an issue or submit a pull request.
 Some ideas:
 - Reduce external dependencies and streamline the installation process.
-- More media controls (jump forward, jump backwards, loop, etc.).
 - Testing and feedback on installing and running it on other OSes.
 - Let me know if you have any other ideas!
 

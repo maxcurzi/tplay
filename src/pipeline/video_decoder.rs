@@ -286,11 +286,16 @@ mod tests {
         let status = Command::new("ffmpeg")
             .args([
                 "-y",
-                "-f", "lavfi",
-                "-i", "color=c=red:s=16x16:r=10:d=1",
-                "-c:v", "libx264",
-                "-pix_fmt", "yuv420p",
-                "-t", "1",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=red:s=16x16:r=10:d=1",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-t",
+                "1",
                 &path,
             ])
             .stdout(std::process::Stdio::null())
@@ -340,9 +345,21 @@ mod tests {
         let pixel = rgb.get_pixel(8, 8);
         // Red video: R should be high, G and B should be low
         // (not exact 255/0/0 due to YUV420 conversion, but clearly red)
-        assert!(pixel[0] > 200, "Red channel should be high, got {}", pixel[0]);
-        assert!(pixel[1] < 50, "Green channel should be low, got {}", pixel[1]);
-        assert!(pixel[2] < 50, "Blue channel should be low, got {}", pixel[2]);
+        assert!(
+            pixel[0] > 200,
+            "Red channel should be high, got {}",
+            pixel[0]
+        );
+        assert!(
+            pixel[1] < 50,
+            "Green channel should be low, got {}",
+            pixel[1]
+        );
+        assert!(
+            pixel[2] < 50,
+            "Blue channel should be low, got {}",
+            pixel[2]
+        );
     }
 
     #[test]
