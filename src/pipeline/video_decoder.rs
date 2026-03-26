@@ -7,10 +7,11 @@ use crate::common::errors::*;
 use image::{DynamicImage, ImageBuffer, Rgb};
 
 use ffmpeg_next as ffmpeg;
-use ffmpeg_next::format::{input, Pixel};
+use ffmpeg_next::format::{input, input_with_dictionary, Pixel};
 use ffmpeg_next::media::Type;
 use ffmpeg_next::software::scaling::{context::Context as ScalingContext, flag::Flags};
 use ffmpeg_next::util::frame::video::Video as FfmpegFrame;
+use ffmpeg_next::Dictionary;
 
 use std::sync::Once;
 
@@ -19,6 +20,9 @@ static FFMPEG_INIT: Once = Once::new();
 fn ensure_ffmpeg_init() {
     FFMPEG_INIT.call_once(|| {
         ffmpeg::init().expect("Failed to initialize ffmpeg");
+        // Suppress ffmpeg's verbose logging (HLS segment fetches, etc.)
+        // to avoid dumping noise to stderr on exit.
+        ffmpeg::log::set_level(ffmpeg::log::Level::Fatal);
     });
 }
 
@@ -41,6 +45,8 @@ pub struct VideoDecoder {
     fps: f64,
     /// Whether we've reached EOF.
     eof: bool,
+    /// Whether the source is a network stream (affects seek behavior).
+    is_streaming: bool,
 }
 
 // SAFETY: The raw pointers in ffmpeg-next's ScalingContext and decoder contexts
@@ -53,7 +59,21 @@ impl VideoDecoder {
     pub fn open(path: &str) -> Result<Self, MyError> {
         ensure_ffmpeg_init();
 
-        let input_ctx = input(&path).map_err(|e| {
+        let is_streaming = path.starts_with("http://") || path.starts_with("https://");
+
+        let input_ctx = if is_streaming {
+            let mut opts = Dictionary::new();
+            // Buffer up to 5 MB before starting playback to reduce stutter
+            opts.set("buffer_size", "5242880");
+            // Allow up to 10 seconds of analysis to detect streams properly
+            opts.set("analyzeduration", "10000000");
+            // Increase probe size for better format detection
+            opts.set("probesize", "5000000");
+            input_with_dictionary(&path, opts)
+        } else {
+            input(&path)
+        }
+        .map_err(|e| {
             MyError::Application(format!("{}: {} ({:?})", ERROR_OPENING_VIDEO, path, e))
         })?;
 
@@ -110,6 +130,7 @@ impl VideoDecoder {
             current_frame: 0,
             fps,
             eof: false,
+            is_streaming,
         })
     }
 
@@ -117,6 +138,16 @@ impl VideoDecoder {
     #[allow(dead_code)]
     pub fn fps(&self) -> f64 {
         self.fps
+    }
+
+    /// Returns the source video dimensions (width, height).
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.decoder.width(), self.decoder.height())
+    }
+
+    /// Returns whether the source is a network stream.
+    pub fn is_streaming(&self) -> bool {
+        self.is_streaming
     }
 
     /// Decodes and returns the next frame as a `DynamicImage`.
@@ -224,21 +255,27 @@ impl VideoDecoder {
     /// (or just past) the requested time — matching the old OpenCV behaviour
     /// and keeping `current_frame` accurate for A/V sync.
     fn seek_to_seconds(&mut self, target_secs: f64) -> bool {
+        // Network streams (HLS etc.) don't support reliable seeking via
+        // avformat_seek_file — the only way to advance is sequential reading.
+        // Return false so the caller knows seeking didn't happen; the sync
+        // logic will catch up by skipping frames instead.
+        if self.is_streaming {
+            return false;
+        }
+
         // Convert target seconds to stream time_base units
         let target_ts = (target_secs * self.time_base.denominator() as f64
             / self.time_base.numerator() as f64) as i64;
 
-        // Seek to any position up to (and including) the target timestamp.
-        // avformat_seek_file will land on the nearest keyframe at or before target_ts.
-        let result = self.input_ctx.seek(0, ..target_ts).is_ok();
+        // Seek to the nearest keyframe at or before target_ts.
+        let result = self.input_ctx.seek(target_ts, ..target_ts + 1).is_ok();
 
         if result {
             self.decoder.flush();
             self.eof = false;
 
-            // Decode and discard frames until we reach the target timestamp.
-            // This replicates OpenCV's CAP_PROP_POS_MSEC seeking which
-            // internally decodes from the keyframe to the exact target.
+            // For local files, decode forward from the keyframe to the exact
+            // target for frame-accurate seeking.
             self.decode_forward_to(target_ts);
         }
         result

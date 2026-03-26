@@ -17,7 +17,7 @@ use crossbeam_channel::{bounded, unbounded};
 use either::Either;
 use msg::broker::Control as MediaControl;
 use pipeline::{
-    char_maps::CHARS1, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
+    char_maps::CHARS3, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
     runner::Control as PipelineControl, runner::RunnerOptions,
 };
 use std::path::Path;
@@ -35,6 +35,7 @@ const AFTER_HELP: &str = "\
   g             Toggle grayscale/color
   m             Toggle mute/unmute
   ← / →         Seek backward/forward 5 seconds
+  j / l           Seek backward/forward 10 seconds
   q             Quit
 
 \x1b[1;4mSubtitle controls:\x1b[0m
@@ -63,7 +64,7 @@ struct Args {
     #[arg(short, long, default_value = "false")]
     loop_playback: bool,
     /// Custom lookup char table
-    #[arg(short, long, default_value = CHARS1)]
+    #[arg(short, long, default_value = CHARS3)]
     char_map: String,
     /// Grayscale mode
     #[arg(short, long, default_value = "false")]
@@ -80,6 +81,9 @@ struct Args {
     /// Exit automatically when the media ends
     #[arg(long, short = 'x', default_value = "false")]
     auto_exit: bool,
+    /// Stretch video to fill terminal (ignore aspect ratio)
+    #[arg(short, long, default_value = "false")]
+    stretch: bool,
 }
 
 const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
@@ -174,6 +178,7 @@ impl MediaProcessor {
         let auto_exit = args.auto_exit;
         let allow_frame_skip = args.allow_frame_skip;
         let new_lines = args.new_lines;
+        let preserve_aspect_ratio = !args.stretch;
         let handle = thread::spawn(move || -> Result<(), MyError> {
             let mut runner = pipeline::runner::Runner::new(
                 ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps, new_lines),
@@ -186,6 +191,7 @@ impl MediaProcessor {
                     w_mod,
                     loop_playback,
                     auto_exit,
+                    preserve_aspect_ratio,
                 },
                 playback_clock,
             );
@@ -299,11 +305,11 @@ fn main() -> Result<(), MyError> {
 
     if let Some(audio) = &audio {
         let title = args.input.clone();
-        let file_path = if let Either::Left(audio_track) = audio.as_ref() {
-            let x = audio_track.to_str().unwrap_or(&title);
-            String::from(x)
-        } else {
-            title
+        let file_path = match audio.as_ref() {
+            Either::Left(audio_track) => {
+                String::from(audio_track.to_str().unwrap_or(&title))
+            }
+            Either::Right(path_string) => path_string.clone(),
         };
         media_processor.launch_audio_thread(file_path, rx_controls_audio, subtitle_text, playback_clock)?;
     }
