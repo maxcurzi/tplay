@@ -34,6 +34,8 @@ enum State {
 
 /// Default seek step in seconds for arrow key navigation.
 const SEEK_STEP_SECONDS: f64 = 5.0;
+/// Larger seek step in seconds for j/l navigation (YouTube-style).
+const SEEK_STEP_LARGE_SECONDS: f64 = 10.0;
 /// Number of lines reserved at the bottom for subtitles.
 const SUBTITLE_LINES: u16 = 1;
 /// Default modest size scaling factor (1.0 = ~60% of width)
@@ -451,6 +453,22 @@ impl Terminal {
                 ..
             }) => {
                 self.send_control(MediaControl::Seek(-SEEK_STEP_SECONDS))?;
+            }
+
+            // Seek forward 10s (l key, YouTube-style)
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('l'),
+                ..
+            }) => {
+                self.send_control(MediaControl::Seek(SEEK_STEP_LARGE_SECONDS))?;
+            }
+
+            // Seek backward 10s (j key, YouTube-style)
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('j'),
+                ..
+            }) => {
+                self.send_control(MediaControl::Seek(-SEEK_STEP_LARGE_SECONDS))?;
             }
 
             // Toggle subtitles on/off (Shift+C)

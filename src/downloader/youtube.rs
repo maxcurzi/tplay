@@ -9,6 +9,60 @@ use crate::common::errors::MyError;
 use std::process::{Command, Stdio};
 use tempfile::{self, TempPath};
 
+/// Extracts a direct streaming URL from a YouTube video using `yt-dlp -g`.
+///
+/// Returns a muxed (video+audio) streaming URL that can be passed directly to
+/// ffmpeg or MPV without downloading the entire file first.
+///
+/// # Arguments
+///
+/// * `url` - The YouTube URL.
+/// * `browser` - The browser to use for cookie extraction.
+///
+/// # Returns
+///
+/// * `Ok(String)` - The direct streaming URL.
+/// * `Err(MyError)` - An error if URL extraction fails.
+pub fn get_streaming_url(url: &str, browser: &str) -> Result<String, MyError> {
+    if Command::new("yt-dlp").output().is_err() {
+        return Err(MyError::Application(
+            "yt-dlp is not installed.
+To view YouTube videos Please install it and try again.
+See https://github.com/yt-dlp/yt-dlp/wiki/Installation"
+                .to_string(),
+        ));
+    };
+
+    let output = Command::new("yt-dlp")
+        .arg("-g")
+        .arg("-f")
+        .arg("best")
+        .arg("--cookies-from-browser")
+        .arg(browser)
+        .arg(url)
+        .output()
+        .map_err(|e| MyError::Application(format!("Failed to run yt-dlp: {}", e)))?;
+
+    if output.status.success() {
+        let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if url.is_empty() {
+            Err(MyError::Application(
+                "yt-dlp returned empty URL".to_string(),
+            ))
+        } else {
+            // yt-dlp may return multiple lines if separate video/audio streams;
+            // take the first line (the video+audio muxed URL with -f best)
+            let first_url = url.lines().next().unwrap_or(&url).to_string();
+            Ok(first_url)
+        }
+    } else {
+        Err(MyError::Application(format!(
+            "yt-dlp failed to extract URL: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )))
+    }
+}
+
 /// Downloads a video from the given URL using `yt-dlp` and saves it to a temporary file.
 ///
 /// # Arguments

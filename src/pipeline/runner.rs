@@ -9,9 +9,10 @@ use crate::{
     common::{errors::MyError, sync::PlaybackClock},
     msg::broker::Control as MediaControl,
     pipeline::char_maps::*,
-    StringInfo,
+    StringInfo, DEFAULT_TERMINAL_SIZE,
 };
 use crossbeam_channel::{select, Receiver, Sender};
+use crossterm::terminal;
 use image::DynamicImage;
 use std::{sync::Arc, thread, time::Duration};
 
@@ -51,6 +52,13 @@ pub struct Runner {
     runner_options: RunnerOptions,
     playback_clock: Option<Arc<PlaybackClock>>,
     last_synced_frame: i64,
+    /// Source media dimensions for aspect ratio preservation
+    source_dimensions: Option<(u32, u32)>,
+    /// Whether the source is a network stream (affects sync behavior)
+    is_streaming: bool,
+    /// Current terminal dimensions in characters (for padding output)
+    terminal_cols: u32,
+    terminal_rows: u32,
 }
 
 pub struct RunnerOptions {
@@ -62,6 +70,8 @@ pub struct RunnerOptions {
     pub loop_playback: bool,
     /// Exit automatically when the media ends
     pub auto_exit: bool,
+    /// Preserve source aspect ratio (accounting for terminal character shape)
+    pub preserve_aspect_ratio: bool,
 }
 /// Enum representing the different control commands that can be sent to the Runner.
 #[derive(Debug, PartialEq)]
@@ -108,6 +118,8 @@ impl Runner {
         runner_options: RunnerOptions,
         playback_clock: Option<Arc<PlaybackClock>>,
     ) -> Self {
+        let source_dimensions = media.dimensions();
+        let is_streaming = media.is_streaming();
         let char_maps: Vec<Vec<char>> = vec![
             pipeline.char_map.clone(),
             CHARS1.to_string().chars().collect(),
@@ -132,6 +144,10 @@ impl Runner {
             runner_options,
             playback_clock,
             last_synced_frame: -1,
+            source_dimensions,
+            is_streaming,
+            terminal_cols: DEFAULT_TERMINAL_SIZE.0,
+            terminal_rows: DEFAULT_TERMINAL_SIZE.1,
         }
     }
 
@@ -213,6 +229,8 @@ impl Runner {
         let grayimage = procimage.clone().into_luma8();
         let rgb_info = procimage.into_rgb8().to_vec();
 
+        let ascii = self.pipeline.to_ascii(&grayimage);
+
         // Add newlines to the rgb_info to match the ascii string These are not
         // really needed, but it's important if you want to copy/paste the
         // output and preserve the aspect.
@@ -226,9 +244,64 @@ impl Runner {
                     rgb_info_newline.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
                 }
             }
-            return Ok((self.pipeline.to_ascii(&grayimage), rgb_info_newline));
+            return Ok((ascii, rgb_info_newline));
         }
-        Ok((self.pipeline.to_ascii(&grayimage), rgb_info))
+
+        let (ascii, rgb_info) = self.pad_to_terminal(ascii, rgb_info);
+        Ok((ascii, rgb_info))
+    }
+
+    /// Pads each row of the ASCII output to the terminal width with spaces,
+    /// and adds blank rows to fill the terminal height. This is necessary when
+    /// preserving aspect ratio produces an image smaller than the terminal,
+    /// because the terminal draw relies on line-wrapping at exactly the
+    /// terminal width.
+    fn pad_to_terminal(&self, ascii: String, rgb: Vec<u8>) -> (String, Vec<u8>) {
+        let img_w = self.pipeline.target_resolution.0 as usize;
+        let img_h = self.pipeline.target_resolution.1 as usize;
+        let term_w = self.terminal_cols as usize;
+        let term_h = self.terminal_rows as usize;
+
+        if img_w == term_w && img_h == term_h {
+            return (ascii, rgb);
+        }
+
+        let x_offset = (term_w.saturating_sub(img_w)) / 2;
+        let y_offset = (term_h.saturating_sub(img_h)) / 2;
+
+        let mut padded_ascii = String::with_capacity(term_w * term_h);
+        let mut padded_rgb = Vec::with_capacity(term_w * term_h * 3);
+        let ascii_chars: Vec<char> = ascii.chars().collect();
+
+        for row in 0..term_h {
+            let img_row = row.wrapping_sub(y_offset);
+            if row >= y_offset && img_row < img_h {
+                let start = img_row * img_w;
+                let end = (start + img_w).min(ascii_chars.len());
+                let written = end - start;
+                // Left padding
+                for _ in 0..x_offset {
+                    padded_ascii.push(' ');
+                    padded_rgb.extend_from_slice(&[0, 0, 0]);
+                }
+                // Image content
+                padded_ascii.extend(&ascii_chars[start..end]);
+                padded_rgb.extend_from_slice(&rgb[start * 3..end * 3]);
+                // Right padding
+                for _ in (x_offset + written)..term_w {
+                    padded_ascii.push(' ');
+                    padded_rgb.extend_from_slice(&[0, 0, 0]);
+                }
+            } else {
+                // Blank row
+                for _ in 0..term_w {
+                    padded_ascii.push(' ');
+                    padded_rgb.extend_from_slice(&[0, 0, 0]);
+                }
+            }
+        }
+
+        (padded_ascii, padded_rgb)
     }
 
     /// Processes control commands from the commands buffer and updates the Runner state and
@@ -279,11 +352,55 @@ impl Runner {
     ///
     /// * `width` - The new target width.
     /// * `height` - The new target height.
+    /// Detect the actual character cell aspect ratio from the terminal's pixel
+    /// dimensions. Falls back to 2.0 (a typical monospace default) when pixel
+    /// info is unavailable.
+    fn char_aspect_ratio() -> f64 {
+        if let Ok(ws) = terminal::window_size() {
+            if ws.width > 0 && ws.height > 0 && ws.columns > 0 && ws.rows > 0 {
+                let cell_w = ws.width as f64 / ws.columns as f64;
+                let cell_h = ws.height as f64 / ws.rows as f64;
+                if cell_w > 0.0 {
+                    return cell_h / cell_w;
+                }
+            }
+        }
+        2.0
+    }
+
     fn resize_pipeline(&mut self, width: u16, height: u16) {
-        let _ = self.pipeline.set_target_resolution(
-            (width / self.runner_options.w_mod as u16).into(),
-            height.into(),
-        );
+        let term_w = (width / self.runner_options.w_mod as u16) as u32;
+        let term_h = height as u32;
+        self.terminal_cols = term_w;
+        self.terminal_rows = term_h;
+
+        let (target_w, target_h) =
+            if self.runner_options.preserve_aspect_ratio {
+                if let Some((src_w, src_h)) = self.source_dimensions {
+                    let char_ar = Self::char_aspect_ratio();
+                    let src_w = src_w as f64;
+                    let src_h = src_h as f64;
+                    let tw = term_w as f64;
+                    let th = term_h as f64;
+
+                    let scale_w = tw / src_w;
+                    let scale_h = (th * char_ar) / src_h;
+                    let scale = scale_w.min(scale_h);
+
+                    let display_w = (src_w * scale).round().max(1.0) as u32;
+                    let display_h = (src_h * scale / char_ar)
+                        .round()
+                        .max(1.0) as u32;
+
+                    (display_w.min(term_w), display_h.min(term_h))
+                } else {
+                    (term_w, term_h)
+                }
+            } else {
+                (term_w, term_h)
+            };
+
+        let _ = self.pipeline.set_target_resolution(target_w, target_h);
     }
 
     /// Sets the character map for the image pipeline based on the provided index.
@@ -329,45 +446,66 @@ impl Runner {
 
         let audio_pos = clock.get_position();
         let target_frame = (audio_pos.as_secs_f64() * self.runner_options.fps) as i64;
-        
+
         // Get actual current frame position from the media decoder
         let current_frame = self.media.get_position_frames();
-        
+
         // Calculate diff: Target - Current
         // If diff > 0: We are BEHIND (Audio is at 100, Video at 90) -> Need to catch up
         // If diff < 0: We are AHEAD (Audio at 90, Video at 100) -> Need to wait
         let frame_diff = target_frame - current_frame;
-        
+
         // Video is AHEAD of Audio (frame_diff < 0)
         // Check for massive drift that requires seek (e.g. video wrapped or seeked wrongly)
         if frame_diff < 0 {
              let max_lead_frames = (2.0 * self.runner_options.fps) as i64;
              if frame_diff < -max_lead_frames {
-                  self.media.seek_to_frame(target_frame.max(0) as usize);
+                  if !self.is_streaming {
+                      self.media.seek_to_frame(target_frame.max(0) as usize);
+                  }
                   return (true, 0);
              }
              // Just wait for audio to catch up
              return (false, 0);
         }
-        
+
         // Video is BEHIND Audio (frame_diff > 0)
         if frame_diff == 0 {
             // Perfect sync, process 1 frame (which advances us to +1)
             return (true, 0);
         }
-        
+
         // If we are behind...
-        
+
         // Threshold for using "skip" (grab without decode) vs "seek"
         // skip is fast for small gaps. seek is constant time but imprecise/heavy.
-        let skip_limit = (2.0 * self.runner_options.fps) as i64;
-        
+        // For streams, always skip (seeking doesn't work on HLS).
+        let skip_limit = if self.is_streaming {
+            i64::MAX
+        } else {
+            (2.0 * self.runner_options.fps) as i64
+        };
+
         if frame_diff > skip_limit {
              // Too far behind, use seek
              self.media.seek_to_frame(target_frame.max(0) as usize);
              return (true, 0);
         }
-        
+
+        if self.is_streaming && frame_diff > 1 {
+            // For streams, skip frames directly here (not gated by the
+            // allow_frame_skip CLI flag) so we discard them silently
+            // instead of playing them in fast-forward. Cap per iteration
+            // to avoid blocking too long on network reads.
+            let skip = ((frame_diff as usize) - 1)
+                .min((self.runner_options.fps as usize).max(1));
+            self.media.skip_frames(skip);
+            // Tell the run loop NOT to process/display a frame this iteration.
+            // We'll keep skipping each iteration until we've caught up, then
+            // resume normal display.
+            return (false, 0);
+        }
+
         // Small gap: Skip 'frame_diff' frames.
         (true, frame_diff as usize)
     }
@@ -541,6 +679,7 @@ mod tests {
                 w_mod: 1,
                 loop_playback,
                 auto_exit: false,
+                preserve_aspect_ratio: true,
             },
             None,
         );
@@ -605,6 +744,7 @@ mod tests {
                 w_mod: 1,
                 loop_playback,
                 auto_exit: false,
+                preserve_aspect_ratio: true,
             },
             None,
         );
@@ -639,6 +779,7 @@ mod tests {
                 w_mod: 1,
                 loop_playback,
                 auto_exit: false,
+                preserve_aspect_ratio: true,
             },
             None,
         );

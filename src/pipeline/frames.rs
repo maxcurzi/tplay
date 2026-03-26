@@ -193,6 +193,23 @@ impl FrameIterator {
         }
     }
 
+    /// Returns whether the source is a network stream.
+    pub fn is_streaming(&self) -> bool {
+        matches!(self, FrameIterator::Video(video) if video.is_streaming())
+    }
+
+    /// Returns the source media dimensions (width, height), if available.
+    pub fn dimensions(&self) -> Option<(u32, u32)> {
+        match self {
+            FrameIterator::Image(Some(img)) => Some((img.width(), img.height())),
+            FrameIterator::Image(None) => None,
+            FrameIterator::Video(video) => Some(video.dimensions()),
+            FrameIterator::AnimatedImage { frames, .. } => {
+                frames.first().map(|f| (f.width(), f.height()))
+            }
+        }
+    }
+
     /// Returns the current frame index (0-based) that will be read next.
     pub fn get_position_frames(&self) -> i64 {
         match self {
@@ -223,6 +240,20 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
         if let Some(domain) = url.domain() {
             // handle YouTube domains specially
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
+                // Try streaming first (avoids downloading the entire video)
+                if let Ok(streaming_url) =
+                    youtube::get_streaming_url(path.as_str(), broswer.as_str())
+                {
+                    if let Ok(frame_iter) = open_video_from_url(&streaming_url) {
+                        let fps = extract_fps(&streaming_url);
+                        return Ok(MediaData {
+                            frame_iter,
+                            fps,
+                            audio_path: Some(Either::Right(streaming_url)),
+                        });
+                    }
+                }
+                // Fall back to full download
                 let video = youtube::download_video(path.as_str(), broswer.as_str())?;
                 let fps = extract_fps(video.as_os_str().to_str().unwrap_or(""));
                 let video_open = open_video(&video)?;
@@ -232,13 +263,40 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
                     audio_path: Some(Either::Left(video)),
                 });
             } else {
-                // otherwise download the url to a temp file and open media from there.
-                let tmp = tempdir()?;
-                // use the last segment of the url path (for the ext) or a random name otherwise with no extension
+                let url_str = url.as_str().to_string();
                 let name = url
                     .path_segments()
                     .and_then(|s| s.last())
                     .unwrap_or("unknown_media");
+                let ext = Path::new(name)
+                    .extension()
+                    .and_then(std::ffi::OsStr::to_str);
+
+                // For video-like URLs, try streaming directly via ffmpeg
+                let is_image = matches!(
+                    ext,
+                    Some("png") | Some("jpg") | Some("jpeg") | Some("bmp")
+                        | Some("gif") | Some("webp") | Some("tif") | Some("tiff")
+                        | Some("ico")
+                );
+                if !is_image {
+                    if let Ok(frame_iter) = open_video_from_url(&url_str) {
+                        let fps = extract_fps(&url_str);
+                        let audio = if has_audio(&url_str).unwrap_or(false) {
+                            Some(Either::Right(url_str))
+                        } else {
+                            None
+                        };
+                        return Ok(MediaData {
+                            frame_iter,
+                            fps,
+                            audio_path: audio,
+                        });
+                    }
+                }
+
+                // Fall back to downloading the file
+                let tmp = tempdir()?;
                 let p = tmp.path().join(name);
                 download_url_to_file(p.as_path(), url)?;
                 open_media_from_path(p.as_os_str().to_str().unwrap_or(""), p.as_path())
@@ -388,6 +446,12 @@ fn open_video(path: &Path) -> Result<FrameIterator, MyError> {
         .to_str()
         .ok_or_else(|| MyError::Application(ERROR_OPENING_VIDEO.to_string()))?;
     let decoder = VideoDecoder::open(path_str)?;
+    Ok(FrameIterator::Video(decoder))
+}
+
+/// Opens a video from a URL string (HTTP/HTTPS) using ffmpeg's native URL support.
+fn open_video_from_url(url: &str) -> Result<FrameIterator, MyError> {
+    let decoder = VideoDecoder::open(url)?;
     Ok(FrameIterator::Video(decoder))
 }
 
