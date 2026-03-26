@@ -58,7 +58,7 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
 # Features
 This crate is still in early development, but it already has a lot of features. Here's a list of what it can or can't do:
 - [x] Converts and shows any media to ASCII art in the terminal
-- [x] Supports images/gifs/videos/webcam and **YouTube** links
+- [x] Supports images/gifs/videos/webcam, **YouTube** links, and **streaming protocols** (RTSP, RTMP, SRT, UDP, TCP, RTP, MMS, HLS)
 - [x] Any resolution, aspect ratio, and framerate
 - [x] Use any character set as supported by your terminal
 - [x] Handy pause/unpause and char map selection [controls](#playback-commands)
@@ -257,6 +257,18 @@ tplay https://www.youtube.com/watch?v=FtutLA63Cp8 --char-map "🍎🍏❤️😊
 
 # Example: webcam on Linux (YMMV on other OSes)
 tplay /dev/video0
+
+# Example: RTSP stream (e.g. IP camera)
+tplay rtsp://192.168.1.100:554/live
+
+# Example: UDP multicast stream
+tplay udp://239.0.0.1:1234
+
+# Example: SRT stream
+tplay srt://192.168.1.100:9000
+
+# Example: RTMP stream
+tplay rtmp://live.server.com/app/stream_key
 ```
 
 # Playback commands
