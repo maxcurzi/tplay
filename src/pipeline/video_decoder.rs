@@ -164,12 +164,11 @@ impl VideoDecoder {
         loop {
             match self.next_video_packet() {
                 Some(packet) => {
-                    if self.decoder.send_packet(&packet).is_err() {
-                        continue;
-                    }
-                    if let Some(img) = self.receive_frame() {
-                        self.current_frame += 1;
-                        return Some(img);
+                    if self.decoder.send_packet(&packet).is_ok() {
+                        if let Some(img) = self.receive_frame() {
+                            self.current_frame += 1;
+                            return Some(img);
+                        }
                     }
                 }
                 None => {
@@ -200,18 +199,12 @@ impl VideoDecoder {
 
     /// Get the next packet belonging to the video stream.
     fn next_video_packet(&mut self) -> Option<ffmpeg::Packet> {
-        loop {
-            let mut packet_iter = self.input_ctx.packets();
-            match packet_iter.next() {
-                Some((stream, packet)) => {
-                    if stream.index() == self.video_stream_index {
-                        return Some(packet);
-                    }
-                    // skip non-video packets
-                }
-                None => return None,
+        for (stream, packet) in self.input_ctx.packets() {
+            if stream.index() == self.video_stream_index {
+                return Some(packet);
             }
         }
+        None
     }
 
     /// Skips `n` frames by decoding (and discarding) them.
@@ -288,19 +281,18 @@ impl VideoDecoder {
         loop {
             match self.next_video_packet() {
                 Some(packet) => {
-                    if self.decoder.send_packet(&packet).is_err() {
-                        continue;
-                    }
-                    let mut decoded = FfmpegFrame::empty();
-                    while self.decoder.receive_frame(&mut decoded).is_ok() {
+                    if self.decoder.send_packet(&packet).is_ok() {
+                        let mut decoded = FfmpegFrame::empty();
+                        while self.decoder.receive_frame(&mut decoded).is_ok() {
                         let pts = decoded.pts().unwrap_or(0);
                         // Update current_frame from PTS
                         let secs = pts as f64 * self.time_base.numerator() as f64
                             / self.time_base.denominator() as f64;
                         self.current_frame = (secs * self.fps).round() as i64;
 
-                        if pts >= target_ts {
-                            return;
+                            if pts >= target_ts {
+                                return;
+                            }
                         }
                     }
                 }
@@ -524,5 +516,40 @@ mod tests {
         assert_eq!(decoder.get_position_frames(), 0);
         let frame = decoder.next_frame();
         assert!(frame.is_some());
+    }
+
+    #[test]
+    fn test_next_video_packet_advances_and_terminates() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        let mut count = 0;
+        while decoder.next_video_packet().is_some() {
+            count += 1;
+            assert!(
+                count < 1000,
+                "next_video_packet should not loop indefinitely"
+            );
+        }
+        assert!(count > 0, "Should have returned at least one video packet");
+        // Subsequent calls after exhaustion should return None
+        assert!(decoder.next_video_packet().is_none());
+    }
+
+    #[test]
+    fn test_all_frames_decoded_without_hanging() {
+        let tmp = create_test_video();
+        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
+        let mut frame_count = 0;
+        while decoder.next_frame().is_some() {
+            frame_count += 1;
+            assert!(frame_count < 100, "Decoder should not loop indefinitely");
+        }
+        // 10fps * 1s = ~10 frames
+        assert!(
+            frame_count >= 8 && frame_count <= 12,
+            "Expected ~10 frames, got {}",
+            frame_count
+        );
+        assert!(decoder.is_at_end());
     }
 }
