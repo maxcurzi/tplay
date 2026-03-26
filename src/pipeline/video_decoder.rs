@@ -52,6 +52,20 @@ pub struct VideoDecoder {
 // SAFETY: The raw pointers in ffmpeg-next's ScalingContext and decoder contexts
 // are only accessed from one thread at a time (VideoDecoder is not Clone and is
 // moved into exactly one thread). FFmpeg's decoding API is safe for single-threaded use.
+/// Returns true if the path looks like a streaming URL that FFmpeg can open directly.
+pub fn is_stream_url(path: &str) -> bool {
+    const STREAM_SCHEMES: &[&str] = &[
+        "http://", "https://",
+        "rtsp://", "rtsps://",
+        "rtmp://", "rtmps://", "rtmpe://", "rtmpte://",
+        "srt://",
+        "udp://", "tcp://", "rtp://",
+        "mms://", "mmsh://", "mmst://",
+        "hls+http://", "hls+https://",
+    ];
+    STREAM_SCHEMES.iter().any(|scheme| path.starts_with(scheme))
+}
+
 unsafe impl Send for VideoDecoder {}
 
 impl VideoDecoder {
@@ -59,16 +73,28 @@ impl VideoDecoder {
     pub fn open(path: &str) -> Result<Self, MyError> {
         ensure_ffmpeg_init();
 
-        let is_streaming = path.starts_with("http://") || path.starts_with("https://");
+        let is_streaming = is_stream_url(path);
 
         let input_ctx = if is_streaming {
             let mut opts = Dictionary::new();
-            // Buffer up to 5 MB before starting playback to reduce stutter
-            opts.set("buffer_size", "5242880");
             // Allow up to 10 seconds of analysis to detect streams properly
             opts.set("analyzeduration", "10000000");
             // Increase probe size for better format detection
             opts.set("probesize", "5000000");
+            // Protocol-specific options
+            if path.starts_with("rtsp://") {
+                // Use TCP transport for RTSP (more reliable than UDP)
+                opts.set("rtsp_transport", "tcp");
+                opts.set("stimeout", "5000000"); // 5s socket timeout
+            } else if path.starts_with("udp://") || path.starts_with("rtp://") {
+                opts.set("buffer_size", "65536");
+                opts.set("fifo_size", "1000000");
+            } else if path.starts_with("srt://") {
+                opts.set("mode", "caller");
+            } else {
+                // HTTP/HTTPS/RTMP and others
+                opts.set("buffer_size", "5242880");
+            }
             input_with_dictionary(&path, opts)
         } else {
             input(&path)
@@ -551,5 +577,29 @@ mod tests {
             frame_count
         );
         assert!(decoder.is_at_end());
+    }
+
+    #[test]
+    fn test_is_stream_url_recognizes_protocols() {
+        assert!(is_stream_url("http://example.com/stream"));
+        assert!(is_stream_url("https://example.com/stream.m3u8"));
+        assert!(is_stream_url("rtsp://192.168.1.100:554/live"));
+        assert!(is_stream_url("rtsps://secure.cam/feed"));
+        assert!(is_stream_url("rtmp://live.server.com/app/key"));
+        assert!(is_stream_url("rtmps://live.server.com/app/key"));
+        assert!(is_stream_url("srt://192.168.1.100:9000"));
+        assert!(is_stream_url("udp://239.0.0.1:1234"));
+        assert!(is_stream_url("tcp://192.168.1.100:5000"));
+        assert!(is_stream_url("rtp://239.0.0.1:5004"));
+        assert!(is_stream_url("mms://media.server.com/live"));
+        assert!(is_stream_url("mmsh://media.server.com/live"));
+    }
+
+    #[test]
+    fn test_is_stream_url_rejects_non_streams() {
+        assert!(!is_stream_url("/path/to/video.mp4"));
+        assert!(!is_stream_url("./video.mp4"));
+        assert!(!is_stream_url("/dev/video0"));
+        assert!(!is_stream_url("relative/path.mkv"));
     }
 }

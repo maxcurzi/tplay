@@ -7,7 +7,7 @@ use crate::{
     audio::utils::has_audio,
     common::{errors::*, utils::*},
     downloader::youtube,
-    pipeline::video_decoder::VideoDecoder,
+    pipeline::video_decoder::{self, VideoDecoder},
 };
 use either::Either;
 use gif;
@@ -235,6 +235,23 @@ impl FrameIterator {
 /// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
 /// `MyError` if an error occurs.
 pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
+    // Check for streaming protocol URLs (RTSP, RTMP, SRT, UDP, etc.)
+    // These go directly to FFmpeg without downloading or domain checks.
+    if video_decoder::is_stream_url(&path) && !path.starts_with("http") {
+        let frame_iter = open_video_from_url(&path)?;
+        let fps = extract_fps(&path);
+        let audio = if has_audio(&path).unwrap_or(false) {
+            Some(Either::Right(path))
+        } else {
+            None
+        };
+        return Ok(MediaData {
+            frame_iter,
+            fps,
+            audio_path: audio,
+        });
+    }
+
     // Check if the path is a URL
     if let Ok(url) = Url::parse(path.as_str()) {
         if let Some(domain) = url.domain() {
