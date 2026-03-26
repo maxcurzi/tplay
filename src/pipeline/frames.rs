@@ -296,19 +296,27 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
                         | Some("gif") | Some("webp") | Some("tif") | Some("tiff")
                         | Some("ico")
                 );
+                // Streaming manifests (m3u8, mpd) must be opened directly by FFmpeg;
+                // downloading them locally will fail because they contain relative URLs.
+                let is_streaming_manifest = matches!(ext, Some("m3u8") | Some("mpd"));
+
                 if !is_image {
-                    if let Ok(frame_iter) = open_video_from_url(&url_str) {
-                        let fps = extract_fps(&url_str);
-                        let audio = if has_audio(&url_str).unwrap_or(false) {
-                            Some(Either::Right(url_str))
-                        } else {
-                            None
-                        };
-                        return Ok(MediaData {
-                            frame_iter,
-                            fps,
-                            audio_path: audio,
-                        });
+                    match open_video_from_url(&url_str) {
+                        Ok(frame_iter) => {
+                            let fps = extract_fps(&url_str);
+                            let audio = if has_audio(&url_str).unwrap_or(false) {
+                                Some(Either::Right(url_str))
+                            } else {
+                                None
+                            };
+                            return Ok(MediaData {
+                                frame_iter,
+                                fps,
+                                audio_path: audio,
+                            });
+                        }
+                        Err(e) if is_streaming_manifest => return Err(e),
+                        Err(_) => {} // fall through to download for regular files
                     }
                 }
 
