@@ -7,10 +7,11 @@ use crate::common::errors::*;
 use image::{DynamicImage, ImageBuffer, Rgb};
 
 use ffmpeg_next as ffmpeg;
-use ffmpeg_next::format::{input, Pixel};
+use ffmpeg_next::format::{input, input_with_dictionary, Pixel};
 use ffmpeg_next::media::Type;
 use ffmpeg_next::software::scaling::{context::Context as ScalingContext, flag::Flags};
 use ffmpeg_next::util::frame::video::Video as FfmpegFrame;
+use ffmpeg_next::Dictionary;
 
 use std::sync::Once;
 
@@ -58,7 +59,21 @@ impl VideoDecoder {
     pub fn open(path: &str) -> Result<Self, MyError> {
         ensure_ffmpeg_init();
 
-        let input_ctx = input(&path).map_err(|e| {
+        let is_streaming = path.starts_with("http://") || path.starts_with("https://");
+
+        let input_ctx = if is_streaming {
+            let mut opts = Dictionary::new();
+            // Buffer up to 5 MB before starting playback to reduce stutter
+            opts.set("buffer_size", "5242880");
+            // Allow up to 10 seconds of analysis to detect streams properly
+            opts.set("analyzeduration", "10000000");
+            // Increase probe size for better format detection
+            opts.set("probesize", "5000000");
+            input_with_dictionary(&path, opts)
+        } else {
+            input(&path)
+        }
+        .map_err(|e| {
             MyError::Application(format!("{}: {} ({:?})", ERROR_OPENING_VIDEO, path, e))
         })?;
 
@@ -103,8 +118,6 @@ impl VideoDecoder {
                 ERROR_OPENING_VIDEO, e
             ))
         })?;
-
-        let is_streaming = path.starts_with("http://") || path.starts_with("https://");
 
         Ok(Self {
             input_ctx,

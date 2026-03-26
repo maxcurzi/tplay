@@ -17,7 +17,7 @@ use crossbeam_channel::{bounded, unbounded};
 use either::Either;
 use msg::broker::Control as MediaControl;
 use pipeline::{
-    char_maps::CHARS1, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
+    char_maps::CHARS3, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
     runner::Control as PipelineControl, runner::RunnerOptions,
 };
 use std::path::Path;
@@ -64,7 +64,7 @@ struct Args {
     #[arg(short, long, default_value = "false")]
     loop_playback: bool,
     /// Custom lookup char table
-    #[arg(short, long, default_value = CHARS1)]
+    #[arg(short, long, default_value = CHARS3)]
     char_map: String,
     /// Grayscale mode
     #[arg(short, long, default_value = "false")]

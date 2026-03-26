@@ -12,7 +12,7 @@ use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
-    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor, Stylize},
+    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
 };
 use std::{
@@ -219,15 +219,18 @@ impl Terminal {
         if self.use_grayscale {
             print_string(string)
         } else {
-            let mut colored_string = String::with_capacity(string.len() * 10);
+            // Pre-allocate: each char needs ~20 bytes for the ANSI escape
+            // sequence ("\x1b[38;2;RRR;GGG;BBBm" = up to 19 chars) + the char itself.
+            let mut colored_string = String::with_capacity(string.len() * 22);
+            use std::fmt::Write;
             for (c, rgb) in string.chars().zip(rgb_data.chunks(3)) {
-                let color = Color::Rgb {
-                    r: rgb[0],
-                    g: rgb[1],
-                    b: rgb[2],
-                };
-                colored_string.push_str(&format!("{}", c.stylize().with(color)));
+                let _ = write!(
+                    colored_string,
+                    "\x1b[38;2;{};{};{}m{}",
+                    rgb[0], rgb[1], rgb[2], c
+                );
             }
+            colored_string.push_str("\x1b[0m");
             print_string(&colored_string)
         }
     }
