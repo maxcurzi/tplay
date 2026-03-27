@@ -45,8 +45,10 @@ pub struct VideoDecoder {
     fps: f64,
     /// Whether we've reached EOF.
     eof: bool,
-    /// Whether the source is a network stream (affects seek behavior).
+    /// Whether the source is a remote URL (affects FFmpeg open options).
     is_streaming: bool,
+    /// Whether the source is a live/non-seekable stream (affects seek and sync behavior).
+    is_live: bool,
 }
 
 // SAFETY: The raw pointers in ffmpeg-next's ScalingContext and decoder contexts
@@ -66,6 +68,21 @@ pub fn is_stream_url(path: &str) -> bool {
     STREAM_SCHEMES.iter().any(|scheme| path.starts_with(scheme))
 }
 
+/// Returns true if the URL uses a live/non-seekable protocol.
+/// HTTP/HTTPS sources typically support byte-range seeking and should NOT
+/// be treated as live streams.
+fn is_live_stream_url(path: &str) -> bool {
+    const LIVE_SCHEMES: &[&str] = &[
+        "rtsp://", "rtsps://",
+        "rtmp://", "rtmps://", "rtmpe://", "rtmpte://",
+        "srt://",
+        "udp://", "tcp://", "rtp://",
+        "mms://", "mmsh://", "mmst://",
+        "hls+http://", "hls+https://",
+    ];
+    LIVE_SCHEMES.iter().any(|scheme| path.starts_with(scheme))
+}
+
 unsafe impl Send for VideoDecoder {}
 
 impl VideoDecoder {
@@ -74,6 +91,7 @@ impl VideoDecoder {
         ensure_ffmpeg_init();
 
         let is_streaming = is_stream_url(path);
+        let is_live = is_live_stream_url(path);
 
         let input_ctx = if is_streaming {
             let mut opts = Dictionary::new();
@@ -157,6 +175,7 @@ impl VideoDecoder {
             fps,
             eof: false,
             is_streaming,
+            is_live,
         })
     }
 
@@ -171,7 +190,8 @@ impl VideoDecoder {
         (self.decoder.width(), self.decoder.height())
     }
 
-    /// Returns whether the source is a network stream.
+    /// Returns whether the source is a live/non-seekable stream.
+    /// HTTP/HTTPS sources return false here since they support seeking.
     pub fn is_streaming(&self) -> bool {
         self.is_streaming
     }
@@ -274,30 +294,88 @@ impl VideoDecoder {
     /// (or just past) the requested time — matching the old OpenCV behaviour
     /// and keeping `current_frame` accurate for A/V sync.
     fn seek_to_seconds(&mut self, target_secs: f64) -> bool {
-        // Network streams (HLS etc.) don't support reliable seeking via
-        // avformat_seek_file — the only way to advance is sequential reading.
-        // Return false so the caller knows seeking didn't happen; the sync
-        // logic will catch up by skipping frames instead.
-        if self.is_streaming {
+        // Live streams (RTSP, RTMP, UDP etc.) don't support reliable seeking.
+        if self.is_live {
             return false;
         }
 
-        // Convert target seconds to stream time_base units
         let target_ts = (target_secs * self.time_base.denominator() as f64
             / self.time_base.numerator() as f64) as i64;
 
-        // Seek to the nearest keyframe at or before target_ts.
-        let result = self.input_ctx.seek(target_ts, ..target_ts + 1).is_ok();
+        // HTTP/HTTPS sources need av_seek_frame (avformat_seek_file silently
+        // fails). Forward seeks work directly; backward seeks require a
+        // two-step approach: seek to 0 then forward to target.
+        if self.is_streaming {
+            return self.seek_to_seconds_remote(target_ts);
+        }
 
+        // Local file: use the standard avformat_seek_file path.
+        let result = self.input_ctx.seek(target_ts, ..target_ts + 1).is_ok();
         if result {
             self.decoder.flush();
             self.eof = false;
-
-            // For local files, decode forward from the keyframe to the exact
-            // target for frame-accurate seeking.
             self.decode_forward_to(target_ts);
         }
         result
+    }
+
+    /// Seek implementation for remote (HTTP/HTTPS) sources using av_seek_frame.
+    fn seek_to_seconds_remote(&mut self, target_ts: i64) -> bool {
+        let current_ts = (self.current_frame as f64 / self.fps
+            * self.time_base.denominator() as f64
+            / self.time_base.numerator() as f64) as i64;
+
+        let is_forward = target_ts >= current_ts;
+
+        let ok = if is_forward {
+            // Forward: av_seek_frame works directly.
+            let r = unsafe {
+                ffmpeg::sys::av_seek_frame(
+                    self.input_ctx.as_mut_ptr(),
+                    self.video_stream_index as i32,
+                    target_ts,
+                    1, // AVSEEK_FLAG_BACKWARD — nearest keyframe at or before target
+                )
+            };
+            r >= 0
+        } else {
+            // Backward: seek to 0 first, then forward to target.
+            let r = unsafe {
+                ffmpeg::sys::av_seek_frame(
+                    self.input_ctx.as_mut_ptr(),
+                    self.video_stream_index as i32,
+                    0,
+                    1, // AVSEEK_FLAG_BACKWARD
+                )
+            };
+            if r < 0 {
+                return false;
+            }
+            self.decoder.flush();
+            if target_ts > 0 {
+                let r = unsafe {
+                    ffmpeg::sys::av_seek_frame(
+                        self.input_ctx.as_mut_ptr(),
+                        self.video_stream_index as i32,
+                        target_ts,
+                        1, // AVSEEK_FLAG_BACKWARD
+                    )
+                };
+                r >= 0
+            } else {
+                true
+            }
+        };
+
+        if ok {
+            self.decoder.flush();
+            self.eof = false;
+            // Decode forward from the keyframe to the exact target so that
+            // current_frame and the decoder position match — preventing A/V
+            // desync caused by the race between video and audio seek.
+            self.decode_forward_to(target_ts);
+        }
+        ok
     }
 
     /// Decode and discard frames until the next frame's PTS reaches `target_ts`.
@@ -601,5 +679,21 @@ mod tests {
         assert!(!is_stream_url("./video.mp4"));
         assert!(!is_stream_url("/dev/video0"));
         assert!(!is_stream_url("relative/path.mkv"));
+    }
+
+    #[test]
+    fn test_is_live_stream_url_excludes_http() {
+        assert!(!is_live_stream_url("http://example.com/video.mp4"));
+        assert!(!is_live_stream_url("https://example.com/video.mp4"));
+    }
+
+    #[test]
+    fn test_is_live_stream_url_includes_live_protocols() {
+        assert!(is_live_stream_url("rtsp://192.168.1.100:554/live"));
+        assert!(is_live_stream_url("rtmp://live.server.com/app/key"));
+        assert!(is_live_stream_url("srt://192.168.1.100:9000"));
+        assert!(is_live_stream_url("udp://239.0.0.1:1234"));
+        assert!(is_live_stream_url("rtp://239.0.0.1:5004"));
+        assert!(is_live_stream_url("mms://media.server.com/live"));
     }
 }
