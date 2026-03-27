@@ -220,12 +220,14 @@ cargo build --release --no-default-features --features rodio_audio
 |--------|-------------|
 | `media` | Name of the file or stream to be processed (required). |
 | `-f`, `--fps` | Forces a specific frame rate (--fps 23.976). |
-| `-c`, `--char-map` | Custom lookup character table to use for the output (default: ` .:-=+*#%@`). |
+| `-c`, `--char-map` | Custom lookup character table to use for the output. |
 | `-g`, `--gray` | Start in grayscale mode |
 | `-w`, `--w-mod` | Experimental width modifier for certain characters such as emojis (default: 1). Use a value of 2 if your char_map is composed of emojis. |
 | `-a`, `--allow-frame-skip` | Experimental frame skip flag. Try to use it if the playback is too slow. |
 | `-n`, `--new-lines` | Experimental flag. Adds newline and carriage return `\n\r` at the end of each line (except the last). Terminals wrap around and don't need new lines, but if you want to copy-paste the text outside the terminal you may want them. The output would be a single long string otherwise. Uses more CPU. |
 | `-l`, `--loop-playback` | Loop video/gif forever (default: do not loop - play once) |
+| `-x`, `--auto-exit` | Exit automatically when the media ends (default: keep displaying the last frame) |
+| `-s`, `--stretch` | Stretch video to fill terminal (ignore aspect ratio) |
 | `-b`, `--browser` | It's used when downloading videos from YouTube, maps to yt-dlp `cookies-from-browser` to prove YouTube you're not a robot. Defaults to "firefox". Supported browsers are: brave, chrome, chromium, edge, firefox, opera, safari, vivaldi, whale |
 
 Substitute `tplay` with `cargo run --release --` if you plan to run from source.
@@ -277,6 +279,7 @@ tplay rtmp://live.server.com/app/stream_key
 - `g` - toggle grayscale/color
 - `m` - toggle mute/unmute
 - `←` / `→` - seek backward/forward 5 seconds
+- `j` / `l` - seek backward/forward 10 seconds
 - `[` / `]` - decrease/increase playback speed by 0.25x
 - `,` / `.` - decrease/increase playback speed by 0.1x (fine control)
 - `\` - reset playback speed to 1.0x
