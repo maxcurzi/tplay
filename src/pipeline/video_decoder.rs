@@ -255,14 +255,6 @@ impl VideoDecoder {
     /// (or just past) the requested time — matching the old OpenCV behaviour
     /// and keeping `current_frame` accurate for A/V sync.
     fn seek_to_seconds(&mut self, target_secs: f64) -> bool {
-        // Network streams (HLS etc.) don't support reliable seeking via
-        // avformat_seek_file — the only way to advance is sequential reading.
-        // Return false so the caller knows seeking didn't happen; the sync
-        // logic will catch up by skipping frames instead.
-        if self.is_streaming {
-            return false;
-        }
-
         // Convert target seconds to stream time_base units
         let target_ts = (target_secs * self.time_base.denominator() as f64
             / self.time_base.numerator() as f64) as i64;

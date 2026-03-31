@@ -462,9 +462,7 @@ impl Runner {
         if frame_diff < 0 {
              let max_lead_frames = (2.0 * self.runner_options.fps) as i64;
              if frame_diff < -max_lead_frames {
-                  if !self.is_streaming {
-                      self.media.seek_to_frame(target_frame.max(0) as usize);
-                  }
+                  self.media.seek_to_frame(target_frame.max(0) as usize);
                   return (true, 0);
              }
              // Just wait for audio to catch up
