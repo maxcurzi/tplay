@@ -94,6 +94,10 @@ pub enum Control {
     /// Command to seek forward or backward by the specified number of seconds.
     /// Positive values seek forward, negative values seek backward.
     Seek(f64),
+    /// Command to seek to an absolute position in seconds.
+    SeekAbsolute(f64),
+    /// Command to seek to a percentage of the total duration (0.0 to 1.0).
+    SeekPercent(f64),
 }
 
 impl Runner {
@@ -333,6 +337,14 @@ impl Runner {
                 Control::Seek(seconds) => {
                     self.seek_media(seconds);
                 }
+                Control::SeekAbsolute(seconds) => {
+                    self.seek_media_absolute(seconds);
+                }
+                Control::SeekPercent(pct) => {
+                    if let Some(duration) = self.media.duration_secs() {
+                        self.seek_media_absolute(duration * pct);
+                    }
+                }
             }
         }
         needs_refresh
@@ -458,7 +470,6 @@ impl Runner {
         let frame_diff = target_frame - current_frame;
 
         // Video is AHEAD of Audio (frame_diff < 0)
-        // Check for massive drift that requires seek (e.g. video wrapped or seeked wrongly)
         if frame_diff < 0 {
              let max_lead_frames = (2.0 * self.runner_options.fps) as i64;
              if frame_diff < -max_lead_frames {
@@ -568,9 +579,16 @@ impl Runner {
     /// # Arguments
     ///
     /// * `seconds` - The number of seconds to seek. Positive seeks forward, negative seeks backward.
+    /// Seeks the media to an absolute position in seconds.
+    fn seek_media_absolute(&mut self, seconds: f64) {
+        self.media.seek_to_seconds(seconds, self.runner_options.fps);
+        self.last_synced_frame = -1;
+        self.last_frame = None;
+    }
+
     fn seek_media(&mut self, seconds: f64) {
         let at_end = self.media.is_at_end();
-        
+
         if at_end && seconds < 0.0 {
             self.media.reset();
             self.last_synced_frame = -1;

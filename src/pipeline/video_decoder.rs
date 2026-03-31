@@ -150,6 +150,23 @@ impl VideoDecoder {
         self.is_streaming
     }
 
+    /// Returns the total duration in seconds, or None if unknown.
+    pub fn duration_secs(&self) -> Option<f64> {
+        // Try stream-level duration first (in time_base units)
+        if self.stream_duration > 0 && self.time_base.numerator() > 0 {
+            return Some(
+                self.stream_duration as f64 * self.time_base.numerator() as f64
+                    / self.time_base.denominator() as f64,
+            );
+        }
+        // Fallback: format-level duration (in AV_TIME_BASE = microseconds)
+        let fmt_duration = self.input_ctx.duration();
+        if fmt_duration > 0 {
+            return Some(fmt_duration as f64 / 1_000_000.0);
+        }
+        None
+    }
+
     /// Decodes and returns the next frame as a `DynamicImage`.
     pub fn next_frame(&mut self) -> Option<DynamicImage> {
         if self.eof {
@@ -157,7 +174,6 @@ impl VideoDecoder {
         }
         // Try to receive already-buffered decoded frames first
         if let Some(img) = self.receive_frame() {
-            self.current_frame += 1;
             return Some(img);
         }
         // Feed packets until we get a frame or reach EOF
@@ -168,7 +184,6 @@ impl VideoDecoder {
                         continue;
                     }
                     if let Some(img) = self.receive_frame() {
-                        self.current_frame += 1;
                         return Some(img);
                     }
                 }
@@ -176,9 +191,6 @@ impl VideoDecoder {
                     // EOF — flush the decoder
                     let _ = self.decoder.send_eof();
                     let img = self.receive_frame();
-                    if img.is_some() {
-                        self.current_frame += 1;
-                    }
                     self.eof = true;
                     return img;
                 }
@@ -187,9 +199,18 @@ impl VideoDecoder {
     }
 
     /// Receive a decoded frame from the decoder and convert to DynamicImage.
+    /// Updates `current_frame` from PTS for accurate position tracking after seeks.
     fn receive_frame(&mut self) -> Option<DynamicImage> {
         let mut decoded = FfmpegFrame::empty();
         if self.decoder.receive_frame(&mut decoded).is_ok() {
+            // Update position from PTS (accurate after seeks)
+            if let Some(pts) = decoded.pts() {
+                let secs = pts as f64 * self.time_base.numerator() as f64
+                    / self.time_base.denominator() as f64;
+                self.current_frame = (secs * self.fps).round() as i64;
+            } else {
+                self.current_frame += 1;
+            }
             let mut rgb_frame = FfmpegFrame::empty();
             self.scaler.run(&decoded, &mut rgb_frame).ok()?;
             frame_to_image(&rgb_frame)
@@ -237,6 +258,11 @@ impl VideoDecoder {
         self.eof
     }
 
+    /// Seeks to an absolute position in seconds.
+    pub fn seek_to_seconds_abs(&mut self, seconds: f64) -> bool {
+        self.seek_to_seconds(seconds.max(0.0))
+    }
+
     /// Seeks by `seconds` relative to the current position.
     /// Positive values seek forward, negative values seek backward.
     /// Returns `true` if the seek was (at least partially) successful.
@@ -255,20 +281,22 @@ impl VideoDecoder {
     /// (or just past) the requested time — matching the old OpenCV behaviour
     /// and keeping `current_frame` accurate for A/V sync.
     fn seek_to_seconds(&mut self, target_secs: f64) -> bool {
-        // Convert target seconds to stream time_base units
-        let target_ts = (target_secs * self.time_base.denominator() as f64
+        // input_ctx.seek with stream_index=-1 expects AV_TIME_BASE (microseconds)
+        let seek_ts = (target_secs * 1_000_000.0) as i64;
+        // decode_forward_to compares against PTS in stream time_base units
+        let stream_ts = (target_secs * self.time_base.denominator() as f64
             / self.time_base.numerator() as f64) as i64;
 
-        // Seek to the nearest keyframe at or before target_ts.
-        let result = self.input_ctx.seek(target_ts, ..target_ts + 1).is_ok();
+        // Seek to the nearest keyframe at or before the target.
+        let result = self.input_ctx.seek(seek_ts, ..seek_ts + 1).is_ok();
 
         if result {
             self.decoder.flush();
             self.eof = false;
 
-            // For local files, decode forward from the keyframe to the exact
-            // target for frame-accurate seeking.
-            self.decode_forward_to(target_ts);
+            // Decode forward from the keyframe to the exact target
+            // for frame-accurate seeking.
+            self.decode_forward_to(stream_ts);
         }
         result
     }

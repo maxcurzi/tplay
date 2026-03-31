@@ -634,6 +634,26 @@ impl Terminal {
                 self.send_control(MediaControl::ResetSpeed)?;
             }
 
+            // Percentage seek: Shift+1 through Shift+9 (!, @, #, $, %, ^, &, *, ()
+            Event::Key(KeyEvent {
+                code: KeyCode::Char(c @ ('!' | '@' | '#' | '$' | '%' | '^' | '&' | '*' | '(')),
+                ..
+            }) => {
+                let pct = match c {
+                    '!' => 0.1,
+                    '@' => 0.2,
+                    '#' => 0.3,
+                    '$' => 0.4,
+                    '%' => 0.5,
+                    '^' => 0.6,
+                    '&' => 0.7,
+                    '*' => 0.8,
+                    '(' => 0.9,
+                    _ => unreachable!(),
+                };
+                self.send_control(MediaControl::SeekPercent(pct))?;
+            }
+
             _ => {}
         }
         Ok(())

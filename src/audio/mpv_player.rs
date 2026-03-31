@@ -164,6 +164,21 @@ impl AudioPlayerControls for MpvAudioPlayer {
             .map_err(|err| MyError::Audio(format!("Seek failed: {:?}", err)))
     }
 
+    fn seek_absolute(&mut self, seconds: f64) -> Result<(), MyError> {
+        let seek_arg = format!("{}", seconds);
+        self.mpv
+            .command("seek", &[&seek_arg, "absolute"])
+            .map_err(|err| MyError::Audio(format!("Seek absolute failed: {:?}", err)))
+    }
+
+    fn seek_percent(&mut self, pct: f64) -> Result<(), MyError> {
+        let percent = (pct * 100.0).clamp(0.0, 100.0);
+        let seek_arg = format!("{}", percent);
+        self.mpv
+            .command("seek", &[&seek_arg, "absolute-percent"])
+            .map_err(|err| MyError::Audio(format!("Seek percent failed: {:?}", err)))
+    }
+
     /// Cycles through available subtitle tracks.
     ///
     /// # Returns
