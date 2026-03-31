@@ -226,10 +226,11 @@ impl Runner {
     /// the RGB data of the processed image.
     fn process_frame(&mut self, frame: &DynamicImage) -> Result<StringInfo, MyError> {
         let procimage = self.pipeline.resize(frame)?;
-        let grayimage = procimage.clone().into_luma8();
-        let rgb_info = procimage.into_rgb8().to_vec();
+        let rgb_image = procimage.into_rgb8();
+        let (width, height) = (rgb_image.width(), rgb_image.height());
+        let rgb_info = rgb_image.into_raw();
 
-        let ascii = self.pipeline.to_ascii(&grayimage);
+        let ascii = self.pipeline.to_ascii_from_rgb(&rgb_info, width, height);
 
         // Add newlines to the rgb_info to match the ascii string These are not
         // really needed, but it's important if you want to copy/paste the
@@ -411,6 +412,7 @@ impl Runner {
     fn set_char_map(&mut self, char_map: u32) {
         self.pipeline.char_map =
             self.char_maps[(char_map % self.char_maps.len() as u32) as usize].clone();
+        self.pipeline.rebuild_lut();
     }
 
     /// Determines if a frame should be processed based on the current time and the Runner's state.

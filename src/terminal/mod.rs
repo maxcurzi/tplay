@@ -219,16 +219,22 @@ impl Terminal {
         if self.use_grayscale {
             print_string(string)
         } else {
-            // Pre-allocate: each char needs ~20 bytes for the ANSI escape
-            // sequence ("\x1b[38;2;RRR;GGG;BBBm" = up to 19 chars) + the char itself.
             let mut colored_string = String::with_capacity(string.len() * 22);
             use std::fmt::Write;
+            let mut prev: [u8; 3] = [0, 0, 0];
+            let mut first = true;
             for (c, rgb) in string.chars().zip(rgb_data.chunks(3)) {
-                let _ = write!(
-                    colored_string,
-                    "\x1b[38;2;{};{};{}m{}",
-                    rgb[0], rgb[1], rgb[2], c
-                );
+                if first || rgb[0] != prev[0] || rgb[1] != prev[1] || rgb[2] != prev[2] {
+                    let _ = write!(
+                        colored_string,
+                        "\x1b[38;2;{};{};{}m{}",
+                        rgb[0], rgb[1], rgb[2], c
+                    );
+                    prev = [rgb[0], rgb[1], rgb[2]];
+                    first = false;
+                } else {
+                    colored_string.push(c);
+                }
             }
             colored_string.push_str("\x1b[0m");
             print_string(&colored_string)
