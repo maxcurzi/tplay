@@ -69,11 +69,11 @@ impl Iterator for FrameIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            FrameIterator::Image(ref mut img) => img.take(),
-            FrameIterator::Video(ref mut video) => video.next_frame(),
+            FrameIterator::Image(img) => img.take(),
+            FrameIterator::Video(video) => video.next_frame(),
             FrameIterator::AnimatedImage {
-                ref frames,
-                ref mut current_frame,
+                frames,
+                current_frame,
             } => {
                 if *current_frame == frames.len() {
                     None
@@ -102,11 +102,11 @@ impl FrameIterator {
             FrameIterator::Image(_) => {
                 // For a single image, skipping is a no-op, since there's only one frame
             }
-            FrameIterator::Video(ref mut video) => {
+            FrameIterator::Video(video) => {
                 video.skip_frames(n);
             }
             FrameIterator::AnimatedImage {
-                ref mut current_frame,
+                current_frame,
                 frames,
             } => {
                 *current_frame = (*current_frame + n) % frames.len();
@@ -119,11 +119,11 @@ impl FrameIterator {
             FrameIterator::Image(_) => {
                 // For a single image, reset is a no-op, since there's only one frame
             }
-            FrameIterator::Video(ref mut video) => {
+            FrameIterator::Video(video) => {
                 video.reset();
             }
             FrameIterator::AnimatedImage {
-                ref mut current_frame,
+                current_frame,
                 ..
             } => {
                 *current_frame = 0;
@@ -161,9 +161,9 @@ impl FrameIterator {
     pub fn seek_seconds(&mut self, seconds: f64, fps: f64) -> bool {
         match self {
             FrameIterator::Image(_) => false,
-            FrameIterator::Video(ref mut video) => video.seek_seconds(seconds),
+            FrameIterator::Video(video) => video.seek_seconds(seconds),
             FrameIterator::AnimatedImage {
-                ref mut current_frame,
+                current_frame,
                 frames,
             } => {
                 if frames.is_empty() {
@@ -181,11 +181,11 @@ impl FrameIterator {
     pub fn seek_to_frame(&mut self, target_frame: usize) {
         match self {
             FrameIterator::Image(_) => {}
-            FrameIterator::Video(ref mut video) => {
+            FrameIterator::Video(video) => {
                 video.seek_to_frame(target_frame);
             }
             FrameIterator::AnimatedImage {
-                ref mut current_frame,
+                current_frame,
                 frames,
             } => {
                 *current_frame = target_frame.min(frames.len().saturating_sub(1));
@@ -214,9 +214,9 @@ impl FrameIterator {
     pub fn seek_to_seconds(&mut self, seconds: f64, fps: f64) -> bool {
         match self {
             FrameIterator::Image(_) => false,
-            FrameIterator::Video(ref mut video) => video.seek_to_seconds_abs(seconds),
+            FrameIterator::Video(video) => video.seek_to_seconds_abs(seconds),
             FrameIterator::AnimatedImage {
-                ref mut current_frame,
+                current_frame,
                 frames,
             } => {
                 if frames.is_empty() {
