@@ -26,6 +26,30 @@ fn ensure_ffmpeg_init() {
     });
 }
 
+/// Returns true if the path looks like a streaming URL that FFmpeg can open directly.
+pub fn is_stream_url(path: &str) -> bool {
+    const STREAM_SCHEMES: &[&str] = &[
+        "http://",
+        "https://",
+        "rtsp://",
+        "rtsps://",
+        "rtmp://",
+        "rtmps://",
+        "rtmpe://",
+        "rtmpte://",
+        "srt://",
+        "udp://",
+        "tcp://",
+        "rtp://",
+        "mms://",
+        "mmsh://",
+        "mmst://",
+        "hls+http://",
+        "hls+https://",
+    ];
+    STREAM_SCHEMES.iter().any(|scheme| path.starts_with(scheme))
+}
+
 /// An FFmpeg-based video decoder providing frame iteration, seeking, and position tracking.
 #[allow(dead_code)]
 pub struct VideoDecoder {
