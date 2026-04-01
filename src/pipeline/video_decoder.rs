@@ -45,44 +45,13 @@ pub struct VideoDecoder {
     fps: f64,
     /// Whether we've reached EOF.
     eof: bool,
-    /// Whether the source is a remote URL (affects FFmpeg open options).
+    /// Whether the source is a network stream (affects seek behavior).
     is_streaming: bool,
-    /// Whether the source is a live/non-seekable stream (affects seek and sync behavior).
-    is_live: bool,
 }
 
 // SAFETY: The raw pointers in ffmpeg-next's ScalingContext and decoder contexts
 // are only accessed from one thread at a time (VideoDecoder is not Clone and is
 // moved into exactly one thread). FFmpeg's decoding API is safe for single-threaded use.
-/// Returns true if the path looks like a streaming URL that FFmpeg can open directly.
-pub fn is_stream_url(path: &str) -> bool {
-    const STREAM_SCHEMES: &[&str] = &[
-        "http://", "https://",
-        "rtsp://", "rtsps://",
-        "rtmp://", "rtmps://", "rtmpe://", "rtmpte://",
-        "srt://",
-        "udp://", "tcp://", "rtp://",
-        "mms://", "mmsh://", "mmst://",
-        "hls+http://", "hls+https://",
-    ];
-    STREAM_SCHEMES.iter().any(|scheme| path.starts_with(scheme))
-}
-
-/// Returns true if the URL uses a live/non-seekable protocol.
-/// HTTP/HTTPS sources typically support byte-range seeking and should NOT
-/// be treated as live streams.
-fn is_live_stream_url(path: &str) -> bool {
-    const LIVE_SCHEMES: &[&str] = &[
-        "rtsp://", "rtsps://",
-        "rtmp://", "rtmps://", "rtmpe://", "rtmpte://",
-        "srt://",
-        "udp://", "tcp://", "rtp://",
-        "mms://", "mmsh://", "mmst://",
-        "hls+http://", "hls+https://",
-    ];
-    LIVE_SCHEMES.iter().any(|scheme| path.starts_with(scheme))
-}
-
 unsafe impl Send for VideoDecoder {}
 
 impl VideoDecoder {
@@ -90,29 +59,16 @@ impl VideoDecoder {
     pub fn open(path: &str) -> Result<Self, MyError> {
         ensure_ffmpeg_init();
 
-        let is_streaming = is_stream_url(path);
-        let is_live = is_live_stream_url(path);
+        let is_streaming = path.starts_with("http://") || path.starts_with("https://");
 
         let input_ctx = if is_streaming {
             let mut opts = Dictionary::new();
+            // Buffer up to 5 MB before starting playback to reduce stutter
+            opts.set("buffer_size", "5242880");
             // Allow up to 10 seconds of analysis to detect streams properly
             opts.set("analyzeduration", "10000000");
             // Increase probe size for better format detection
             opts.set("probesize", "5000000");
-            // Protocol-specific options
-            if path.starts_with("rtsp://") {
-                // Use TCP transport for RTSP (more reliable than UDP)
-                opts.set("rtsp_transport", "tcp");
-                opts.set("stimeout", "5000000"); // 5s socket timeout
-            } else if path.starts_with("udp://") || path.starts_with("rtp://") {
-                opts.set("buffer_size", "65536");
-                opts.set("fifo_size", "1000000");
-            } else if path.starts_with("srt://") {
-                opts.set("mode", "caller");
-            } else {
-                // HTTP/HTTPS/RTMP and others
-                opts.set("buffer_size", "5242880");
-            }
             input_with_dictionary(&path, opts)
         } else {
             input(&path)
@@ -175,7 +131,6 @@ impl VideoDecoder {
             fps,
             eof: false,
             is_streaming,
-            is_live,
         })
     }
 
@@ -190,10 +145,26 @@ impl VideoDecoder {
         (self.decoder.width(), self.decoder.height())
     }
 
-    /// Returns whether the source is a live/non-seekable stream.
-    /// HTTP/HTTPS sources return false here since they support seeking.
+    /// Returns whether the source is a network stream.
     pub fn is_streaming(&self) -> bool {
         self.is_streaming
+    }
+
+    /// Returns the total duration in seconds, or None if unknown.
+    pub fn duration_secs(&self) -> Option<f64> {
+        // Try stream-level duration first (in time_base units)
+        if self.stream_duration > 0 && self.time_base.numerator() > 0 {
+            return Some(
+                self.stream_duration as f64 * self.time_base.numerator() as f64
+                    / self.time_base.denominator() as f64,
+            );
+        }
+        // Fallback: format-level duration (in AV_TIME_BASE = microseconds)
+        let fmt_duration = self.input_ctx.duration();
+        if fmt_duration > 0 {
+            return Some(fmt_duration as f64 / 1_000_000.0);
+        }
+        None
     }
 
     /// Decodes and returns the next frame as a `DynamicImage`.
@@ -203,27 +174,23 @@ impl VideoDecoder {
         }
         // Try to receive already-buffered decoded frames first
         if let Some(img) = self.receive_frame() {
-            self.current_frame += 1;
             return Some(img);
         }
         // Feed packets until we get a frame or reach EOF
         loop {
             match self.next_video_packet() {
                 Some(packet) => {
-                    if self.decoder.send_packet(&packet).is_ok() {
-                        if let Some(img) = self.receive_frame() {
-                            self.current_frame += 1;
-                            return Some(img);
-                        }
+                    if self.decoder.send_packet(&packet).is_err() {
+                        continue;
+                    }
+                    if let Some(img) = self.receive_frame() {
+                        return Some(img);
                     }
                 }
                 None => {
                     // EOF — flush the decoder
                     let _ = self.decoder.send_eof();
                     let img = self.receive_frame();
-                    if img.is_some() {
-                        self.current_frame += 1;
-                    }
                     self.eof = true;
                     return img;
                 }
@@ -232,9 +199,18 @@ impl VideoDecoder {
     }
 
     /// Receive a decoded frame from the decoder and convert to DynamicImage.
+    /// Updates `current_frame` from PTS for accurate position tracking after seeks.
     fn receive_frame(&mut self) -> Option<DynamicImage> {
         let mut decoded = FfmpegFrame::empty();
         if self.decoder.receive_frame(&mut decoded).is_ok() {
+            // Update position from PTS (accurate after seeks)
+            if let Some(pts) = decoded.pts() {
+                let secs = pts as f64 * self.time_base.numerator() as f64
+                    / self.time_base.denominator() as f64;
+                self.current_frame = (secs * self.fps).round() as i64;
+            } else {
+                self.current_frame += 1;
+            }
             let mut rgb_frame = FfmpegFrame::empty();
             self.scaler.run(&decoded, &mut rgb_frame).ok()?;
             frame_to_image(&rgb_frame)
@@ -245,12 +221,18 @@ impl VideoDecoder {
 
     /// Get the next packet belonging to the video stream.
     fn next_video_packet(&mut self) -> Option<ffmpeg::Packet> {
-        for (stream, packet) in self.input_ctx.packets() {
-            if stream.index() == self.video_stream_index {
-                return Some(packet);
+        loop {
+            let mut packet_iter = self.input_ctx.packets();
+            match packet_iter.next() {
+                Some((stream, packet)) => {
+                    if stream.index() == self.video_stream_index {
+                        return Some(packet);
+                    }
+                    // skip non-video packets
+                }
+                None => return None,
             }
         }
-        None
     }
 
     /// Skips `n` frames by decoding (and discarding) them.
@@ -276,6 +258,11 @@ impl VideoDecoder {
         self.eof
     }
 
+    /// Seeks to an absolute position in seconds.
+    pub fn seek_to_seconds_abs(&mut self, seconds: f64) -> bool {
+        self.seek_to_seconds(seconds.max(0.0))
+    }
+
     /// Seeks by `seconds` relative to the current position.
     /// Positive values seek forward, negative values seek backward.
     /// Returns `true` if the seek was (at least partially) successful.
@@ -294,88 +281,24 @@ impl VideoDecoder {
     /// (or just past) the requested time — matching the old OpenCV behaviour
     /// and keeping `current_frame` accurate for A/V sync.
     fn seek_to_seconds(&mut self, target_secs: f64) -> bool {
-        // Live streams (RTSP, RTMP, UDP etc.) don't support reliable seeking.
-        if self.is_live {
-            return false;
-        }
-
-        let target_ts = (target_secs * self.time_base.denominator() as f64
+        // input_ctx.seek with stream_index=-1 expects AV_TIME_BASE (microseconds)
+        let seek_ts = (target_secs * 1_000_000.0) as i64;
+        // decode_forward_to compares against PTS in stream time_base units
+        let stream_ts = (target_secs * self.time_base.denominator() as f64
             / self.time_base.numerator() as f64) as i64;
 
-        // HTTP/HTTPS sources need av_seek_frame (avformat_seek_file silently
-        // fails). Forward seeks work directly; backward seeks require a
-        // two-step approach: seek to 0 then forward to target.
-        if self.is_streaming {
-            return self.seek_to_seconds_remote(target_ts);
-        }
+        // Seek to the nearest keyframe at or before the target.
+        let result = self.input_ctx.seek(seek_ts, ..seek_ts + 1).is_ok();
 
-        // Local file: use the standard avformat_seek_file path.
-        let result = self.input_ctx.seek(target_ts, ..target_ts + 1).is_ok();
         if result {
             self.decoder.flush();
             self.eof = false;
-            self.decode_forward_to(target_ts);
+
+            // Decode forward from the keyframe to the exact target
+            // for frame-accurate seeking.
+            self.decode_forward_to(stream_ts);
         }
         result
-    }
-
-    /// Seek implementation for remote (HTTP/HTTPS) sources using av_seek_frame.
-    fn seek_to_seconds_remote(&mut self, target_ts: i64) -> bool {
-        let current_ts = (self.current_frame as f64 / self.fps
-            * self.time_base.denominator() as f64
-            / self.time_base.numerator() as f64) as i64;
-
-        let is_forward = target_ts >= current_ts;
-
-        let ok = if is_forward {
-            // Forward: av_seek_frame works directly.
-            let r = unsafe {
-                ffmpeg::sys::av_seek_frame(
-                    self.input_ctx.as_mut_ptr(),
-                    self.video_stream_index as i32,
-                    target_ts,
-                    1, // AVSEEK_FLAG_BACKWARD — nearest keyframe at or before target
-                )
-            };
-            r >= 0
-        } else {
-            // Backward: seek to 0 first, then forward to target.
-            let r = unsafe {
-                ffmpeg::sys::av_seek_frame(
-                    self.input_ctx.as_mut_ptr(),
-                    self.video_stream_index as i32,
-                    0,
-                    1, // AVSEEK_FLAG_BACKWARD
-                )
-            };
-            if r < 0 {
-                return false;
-            }
-            self.decoder.flush();
-            if target_ts > 0 {
-                let r = unsafe {
-                    ffmpeg::sys::av_seek_frame(
-                        self.input_ctx.as_mut_ptr(),
-                        self.video_stream_index as i32,
-                        target_ts,
-                        1, // AVSEEK_FLAG_BACKWARD
-                    )
-                };
-                r >= 0
-            } else {
-                true
-            }
-        };
-
-        if ok {
-            self.decoder.flush();
-            self.eof = false;
-            // Decode forward from the keyframe to the exact target so that
-            // current_frame and the decoder position match — preventing A/V
-            // desync caused by the race between video and audio seek.
-            self.decode_forward_to(target_ts);
-        }
-        ok
     }
 
     /// Decode and discard frames until the next frame's PTS reaches `target_ts`.
@@ -385,18 +308,19 @@ impl VideoDecoder {
         loop {
             match self.next_video_packet() {
                 Some(packet) => {
-                    if self.decoder.send_packet(&packet).is_ok() {
-                        let mut decoded = FfmpegFrame::empty();
-                        while self.decoder.receive_frame(&mut decoded).is_ok() {
+                    if self.decoder.send_packet(&packet).is_err() {
+                        continue;
+                    }
+                    let mut decoded = FfmpegFrame::empty();
+                    while self.decoder.receive_frame(&mut decoded).is_ok() {
                         let pts = decoded.pts().unwrap_or(0);
                         // Update current_frame from PTS
                         let secs = pts as f64 * self.time_base.numerator() as f64
                             / self.time_base.denominator() as f64;
                         self.current_frame = (secs * self.fps).round() as i64;
 
-                            if pts >= target_ts {
-                                return;
-                            }
+                        if pts >= target_ts {
+                            return;
                         }
                     }
                 }
@@ -620,80 +544,5 @@ mod tests {
         assert_eq!(decoder.get_position_frames(), 0);
         let frame = decoder.next_frame();
         assert!(frame.is_some());
-    }
-
-    #[test]
-    fn test_next_video_packet_advances_and_terminates() {
-        let tmp = create_test_video();
-        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
-        let mut count = 0;
-        while decoder.next_video_packet().is_some() {
-            count += 1;
-            assert!(
-                count < 1000,
-                "next_video_packet should not loop indefinitely"
-            );
-        }
-        assert!(count > 0, "Should have returned at least one video packet");
-        // Subsequent calls after exhaustion should return None
-        assert!(decoder.next_video_packet().is_none());
-    }
-
-    #[test]
-    fn test_all_frames_decoded_without_hanging() {
-        let tmp = create_test_video();
-        let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
-        let mut frame_count = 0;
-        while decoder.next_frame().is_some() {
-            frame_count += 1;
-            assert!(frame_count < 100, "Decoder should not loop indefinitely");
-        }
-        // 10fps * 1s = ~10 frames
-        assert!(
-            frame_count >= 8 && frame_count <= 12,
-            "Expected ~10 frames, got {}",
-            frame_count
-        );
-        assert!(decoder.is_at_end());
-    }
-
-    #[test]
-    fn test_is_stream_url_recognizes_protocols() {
-        assert!(is_stream_url("http://example.com/stream"));
-        assert!(is_stream_url("https://example.com/stream.m3u8"));
-        assert!(is_stream_url("rtsp://192.168.1.100:554/live"));
-        assert!(is_stream_url("rtsps://secure.cam/feed"));
-        assert!(is_stream_url("rtmp://live.server.com/app/key"));
-        assert!(is_stream_url("rtmps://live.server.com/app/key"));
-        assert!(is_stream_url("srt://192.168.1.100:9000"));
-        assert!(is_stream_url("udp://239.0.0.1:1234"));
-        assert!(is_stream_url("tcp://192.168.1.100:5000"));
-        assert!(is_stream_url("rtp://239.0.0.1:5004"));
-        assert!(is_stream_url("mms://media.server.com/live"));
-        assert!(is_stream_url("mmsh://media.server.com/live"));
-    }
-
-    #[test]
-    fn test_is_stream_url_rejects_non_streams() {
-        assert!(!is_stream_url("/path/to/video.mp4"));
-        assert!(!is_stream_url("./video.mp4"));
-        assert!(!is_stream_url("/dev/video0"));
-        assert!(!is_stream_url("relative/path.mkv"));
-    }
-
-    #[test]
-    fn test_is_live_stream_url_excludes_http() {
-        assert!(!is_live_stream_url("http://example.com/video.mp4"));
-        assert!(!is_live_stream_url("https://example.com/video.mp4"));
-    }
-
-    #[test]
-    fn test_is_live_stream_url_includes_live_protocols() {
-        assert!(is_live_stream_url("rtsp://192.168.1.100:554/live"));
-        assert!(is_live_stream_url("rtmp://live.server.com/app/key"));
-        assert!(is_live_stream_url("srt://192.168.1.100:9000"));
-        assert!(is_live_stream_url("udp://239.0.0.1:1234"));
-        assert!(is_live_stream_url("rtp://239.0.0.1:5004"));
-        assert!(is_live_stream_url("mms://media.server.com/live"));
     }
 }

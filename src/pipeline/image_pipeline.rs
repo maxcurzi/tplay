@@ -3,7 +3,9 @@
 //! representations using a character lookup table.
 use crate::common::errors::*;
 use fast_image_resize as fr;
-use image::{DynamicImage, GrayImage};
+use image::DynamicImage;
+#[cfg(test)]
+use image::GrayImage;
 
 /// The `ImagePipeline` struct encapsulates the process of converting an image to ASCII art. It
 /// stores the target resolution (width and height) and the character lookup table used for the
@@ -15,6 +17,8 @@ pub struct ImagePipeline {
     pub char_map: Vec<char>,
     /// Whether to add newlines to the output at the end of each line
     pub new_lines: bool,
+    /// Precomputed lookup table: lut[luminance] → character (avoids per-pixel division)
+    lut: [char; 256],
 }
 
 impl ImagePipeline {
@@ -28,11 +32,28 @@ impl ImagePipeline {
     /// * `char_map` - A vector of characters to be used as the lookup table for ASCII
     ///   conversion.
     pub fn new(target_resolution: (u32, u32), char_map: Vec<char>, new_lines: bool) -> Self {
+        let lut = Self::build_lut(&char_map);
         Self {
             target_resolution,
             char_map,
             new_lines,
+            lut,
         }
+    }
+
+    /// Builds a 256-entry lookup table mapping luminance values directly to characters.
+    fn build_lut(char_map: &[char]) -> [char; 256] {
+        let mut lut = [' '; 256];
+        let len = char_map.len();
+        for i in 0..256 {
+            lut[i] = char_map[len * i / 256];
+        }
+        lut
+    }
+
+    /// Rebuilds the LUT after a char_map change.
+    pub fn rebuild_lut(&mut self) {
+        self.lut = Self::build_lut(&self.char_map);
     }
 
     /// Sets the target resolution (width and height) for the pipeline and returns a mutable
@@ -76,7 +97,7 @@ impl ImagePipeline {
         let src_image = fr::images::Image::from_vec_u8(
             width,
             height,
-            img.to_owned().into_rgb8().to_vec(),
+            img.to_rgb8().into_raw(),
             fr::PixelType::U8x3,
         )
         .map_err(|err| MyError::Pipeline(format!("{ERROR_RESIZE}:{err:?}")))?;
@@ -119,6 +140,7 @@ impl ImagePipeline {
     /// # Returns
     ///
     /// A `String` containing the ASCII art representation of the input image.
+    #[cfg(test)]
     pub fn to_ascii(&self, input: &GrayImage) -> String {
         let (width, height) = (input.width(), input.height());
         let capacity = (width + 1) * height + 1;
@@ -126,15 +148,38 @@ impl ImagePipeline {
 
         for y in 0..height {
             output.extend((0..width).map(|x| {
-                let lum = input.get_pixel(x, y)[0] as u32;
-                let lookup_idx = self.char_map.len() * lum as usize / (u8::MAX as usize + 1);
-                self.char_map[lookup_idx]
+                let lum = input.get_pixel(x, y)[0] as usize;
+                self.lut[lum]
             }));
 
-            // Add newlines to the end of each row except the last. NOTE: these
-            // are not really needed because the terminal will wrap lines. But
-            // if you want to copy the output to a file it would be a single
-            // long string without them.
+            if self.new_lines && y < height - 1 {
+                output.push('\r');
+                output.push('\n');
+            }
+        }
+
+        output
+    }
+
+    /// Converts RGB pixel data directly to ASCII art, computing luminance inline.
+    /// Avoids the separate grayscale conversion pass and its allocation entirely.
+    pub fn to_ascii_from_rgb(&self, rgb_data: &[u8], width: u32, height: u32) -> String {
+        let capacity = (width + 1) as usize * height as usize + 1;
+        let mut output = String::with_capacity(capacity);
+
+        for y in 0..height {
+            let row_start = (y * width * 3) as usize;
+            for x in 0..width {
+                let idx = row_start + (x as usize) * 3;
+                let r = rgb_data[idx] as u32;
+                let g = rgb_data[idx + 1] as u32;
+                let b = rgb_data[idx + 2] as u32;
+                // BT.709 (sRGB) luma, matching the image crate's into_luma8():
+                // 2126/10000 ≈ 0.2126, 7152/10000 ≈ 0.7152, 722/10000 ≈ 0.0722
+                let lum = ((r * 2126 + g * 7152 + b * 722) / 10000) as usize;
+                output.push(self.lut[lum]);
+            }
+
             if self.new_lines && y < height - 1 {
                 output.push('\r');
                 output.push('\n');

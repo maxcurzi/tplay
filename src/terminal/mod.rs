@@ -66,6 +66,8 @@ pub struct Terminal {
     terminal_height: u16,
     local_subtitles: Option<SubtitleManager>,
     playback_clock: Option<Arc<PlaybackClock>>,
+    /// Previous frame's RGB data for delta rendering (only redraw changed cells)
+    prev_rgb: Vec<u8>,
 }
 
 impl Terminal {
@@ -103,6 +105,7 @@ impl Terminal {
             terminal_height: 24,
             local_subtitles,
             playback_clock,
+            prev_rgb: Vec::new(),
         }
     }
 
@@ -208,31 +211,96 @@ impl Terminal {
     /// # Errors
     ///
     /// Returns an error if there is an issue with the terminal operations.
-    fn draw(&self, (string, rgb_data): &StringInfo) -> IOResult<()> {
-        let print_string = |string: &str| {
+    fn draw(&mut self, (string, rgb_data): &StringInfo) -> IOResult<()> {
+        use std::fmt::Write;
+
+        let can_delta = self.prev_rgb.len() == rgb_data.len() && !rgb_data.is_empty();
+
+        if can_delta {
+            // Delta render: only emit cells whose RGB changed since last frame
+            let term_w = self.terminal_width as usize;
+            let use_color = !self.use_grayscale;
+            let mut buf = String::with_capacity(string.len() * if use_color { 4 } else { 2 });
+            let mut last_color: Option<[u8; 3]> = None;
+            let mut cursor_at: Option<usize> = None;
+
+            for (i, (c, (rgb, prev))) in string
+                .chars()
+                .zip(rgb_data.chunks(3).zip(self.prev_rgb.chunks(3)))
+                .enumerate()
+            {
+                if rgb == prev {
+                    continue;
+                }
+
+                // Position cursor if not already there, or at row boundary
+                // (row boundaries need explicit positioning for terminal auto-wrap safety)
+                if cursor_at != Some(i) || (term_w > 0 && i % term_w == 0) {
+                    let _ = write!(buf, "\x1b[{};{}H", i / term_w + 1, i % term_w + 1);
+                    last_color = None;
+                }
+
+                if use_color {
+                    let color = [rgb[0], rgb[1], rgb[2]];
+                    if last_color != Some(color) {
+                        let _ = write!(
+                            buf,
+                            "\x1b[38;2;{};{};{}m{}",
+                            rgb[0], rgb[1], rgb[2], c
+                        );
+                        last_color = Some(color);
+                    } else {
+                        buf.push(c);
+                    }
+                } else {
+                    buf.push(c);
+                }
+
+                cursor_at = Some(i + 1);
+            }
+
+            if !buf.is_empty() {
+                if use_color {
+                    buf.push_str("\x1b[0m");
+                }
+                let mut out = stdout();
+                out.write_all(buf.as_bytes())?;
+                out.flush()?;
+            }
+        } else if self.use_grayscale {
+            // Full grayscale redraw (first frame or after invalidation)
             let mut out = stdout();
             execute!(out, MoveTo(0, 0), Print(string), MoveTo(0, 0))?;
             out.flush()?;
-            Ok(())
-        };
-
-        if self.use_grayscale {
-            print_string(string)
         } else {
-            // Pre-allocate: each char needs ~20 bytes for the ANSI escape
-            // sequence ("\x1b[38;2;RRR;GGG;BBBm" = up to 19 chars) + the char itself.
+            // Full color redraw with adjacent-color dedup
             let mut colored_string = String::with_capacity(string.len() * 22);
-            use std::fmt::Write;
+            let mut prev: [u8; 3] = [0, 0, 0];
+            let mut first = true;
             for (c, rgb) in string.chars().zip(rgb_data.chunks(3)) {
-                let _ = write!(
-                    colored_string,
-                    "\x1b[38;2;{};{};{}m{}",
-                    rgb[0], rgb[1], rgb[2], c
-                );
+                if first || rgb[0] != prev[0] || rgb[1] != prev[1] || rgb[2] != prev[2] {
+                    let _ = write!(
+                        colored_string,
+                        "\x1b[38;2;{};{};{}m{}",
+                        rgb[0], rgb[1], rgb[2], c
+                    );
+                    prev = [rgb[0], rgb[1], rgb[2]];
+                    first = false;
+                } else {
+                    colored_string.push(c);
+                }
             }
             colored_string.push_str("\x1b[0m");
-            print_string(&colored_string)
+            let mut out = stdout();
+            execute!(out, MoveTo(0, 0), Print(&colored_string), MoveTo(0, 0))?;
+            out.flush()?;
         }
+
+        // Save current frame for next delta comparison (reuses allocation)
+        self.prev_rgb.clear();
+        self.prev_rgb.extend_from_slice(rgb_data);
+
+        Ok(())
     }
 
     fn draw_subtitle(&mut self) -> IOResult<()> {
@@ -420,6 +488,7 @@ impl Terminal {
                 code: KeyCode::Char(digit),
                 ..
             }) if digit.is_ascii_digit() => {
+                self.prev_rgb.clear(); // force full redraw on char map change
                 self.send_control(MediaControl::SetCharMap(digit.to_digit(10).unwrap_or_else(
                     || panic!("{error}: {digit:?}", error = ERROR_PARSE_DIGIT_FAILED),
                 )))?;
@@ -431,6 +500,7 @@ impl Terminal {
                 ..
             }) => {
                 self.use_grayscale = !self.use_grayscale;
+                self.prev_rgb.clear(); // force full redraw on mode change
                 self.send_control(MediaControl::SetGrayscale(self.use_grayscale))?;
             }
 
@@ -562,6 +632,26 @@ impl Terminal {
                 ..
             }) => {
                 self.send_control(MediaControl::ResetSpeed)?;
+            }
+
+            // Percentage seek: Shift+1 through Shift+9 (!, @, #, $, %, ^, &, *, ()
+            Event::Key(KeyEvent {
+                code: KeyCode::Char(c @ ('!' | '@' | '#' | '$' | '%' | '^' | '&' | '*' | '(')),
+                ..
+            }) => {
+                let pct = match c {
+                    '!' => 0.1,
+                    '@' => 0.2,
+                    '#' => 0.3,
+                    '$' => 0.4,
+                    '%' => 0.5,
+                    '^' => 0.6,
+                    '&' => 0.7,
+                    '*' => 0.8,
+                    '(' => 0.9,
+                    _ => unreachable!(),
+                };
+                self.send_control(MediaControl::SeekPercent(pct))?;
             }
 
             _ => {}

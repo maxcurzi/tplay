@@ -210,6 +210,37 @@ impl FrameIterator {
         }
     }
 
+    /// Seeks to an absolute position in seconds.
+    pub fn seek_to_seconds(&mut self, seconds: f64, fps: f64) -> bool {
+        match self {
+            FrameIterator::Image(_) => false,
+            FrameIterator::Video(ref mut video) => video.seek_to_seconds_abs(seconds),
+            FrameIterator::AnimatedImage {
+                ref mut current_frame,
+                frames,
+            } => {
+                if frames.is_empty() {
+                    return false;
+                }
+                let target_frame = (seconds * fps).round() as usize;
+                *current_frame = target_frame.min(frames.len().saturating_sub(1));
+                true
+            }
+        }
+    }
+
+    /// Returns the total duration in seconds, or None if unknown.
+    pub fn duration_secs(&self) -> Option<f64> {
+        match self {
+            FrameIterator::Image(_) => None,
+            FrameIterator::Video(video) => video.duration_secs(),
+            FrameIterator::AnimatedImage { .. } => {
+                // Duration depends on fps, which we don't store here
+                None
+            }
+        }
+    }
+
     /// Returns the current frame index (0-based) that will be read next.
     pub fn get_position_frames(&self) -> i64 {
         match self {

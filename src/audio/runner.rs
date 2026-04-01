@@ -49,6 +49,10 @@ pub enum Control {
     Exit,
     /// Command to seek forward or backward by the specified number of seconds.
     Seek(f64),
+    /// Command to seek to an absolute position in seconds.
+    SeekAbsolute(f64),
+    /// Command to seek to a percentage of the total duration (0.0 to 1.0).
+    SeekPercent(f64),
     CycleSubtitle,
     ToggleSubtitle,
     /// Command to adjust playback speed by a relative amount (e.g., +0.1, -0.25).
@@ -126,6 +130,14 @@ impl Runner {
                         Control::Seek(seconds) => {
                             // Best-effort seek; may not work for all audio backends/formats
                             let _ = self.audio_player.player.seek(seconds);
+                            self.update_playback_clock();
+                        },
+                        Control::SeekAbsolute(seconds) => {
+                            let _ = self.audio_player.player.seek_absolute(seconds);
+                            self.update_playback_clock();
+                        },
+                        Control::SeekPercent(pct) => {
+                            let _ = self.audio_player.player.seek_percent(pct);
                             self.update_playback_clock();
                         },
                         Control::CycleSubtitle => {

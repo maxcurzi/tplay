@@ -203,6 +203,16 @@ impl AudioPlayerControls for RodioAudioPlayer {
         self.rebuild_at_position(target_duration)
     }
 
+    fn seek_absolute(&mut self, seconds: f64) -> Result<(), MyError> {
+        let target_duration = Duration::from_secs_f64(seconds.max(0.0));
+        self.rebuild_at_position(target_duration)
+    }
+
+    fn seek_percent(&mut self, _pct: f64) -> Result<(), MyError> {
+        // Rodio doesn't expose total duration easily; no-op
+        Ok(())
+    }
+
     fn cycle_subtitle(&mut self) -> Result<(), MyError> {
         Ok(())
     }

@@ -32,6 +32,11 @@ pub enum Control {
     SetGrayscale(bool),
     /// Command to seek forward or backward by the specified number of seconds.
     Seek(f64),
+    /// Command to seek to an absolute position in seconds.
+    #[allow(dead_code)]
+    SeekAbsolute(f64),
+    /// Command to seek to a percentage of the total duration (0.0 to 1.0).
+    SeekPercent(f64),
     /// Command to cycle through available subtitle tracks.
     CycleSubtitle,
     /// Command to toggle subtitle visibility on/off.
@@ -141,6 +146,22 @@ impl MessageBroker {
                             }
                             if let Some(tx) = &self.tx_channel_audio {
                                 let _ = tx.send(AudioControl::Seek(seconds));
+                            }
+                        }
+                        Ok(BrokerControl::SeekAbsolute(seconds)) => {
+                            if let Some(tx) = &self.tx_channel_pipeline {
+                                let _ = tx.send(PipelineControl::SeekAbsolute(seconds));
+                            }
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::SeekAbsolute(seconds));
+                            }
+                        }
+                        Ok(BrokerControl::SeekPercent(pct)) => {
+                            if let Some(tx) = &self.tx_channel_pipeline {
+                                let _ = tx.send(PipelineControl::SeekPercent(pct));
+                            }
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::SeekPercent(pct));
                             }
                         }
                         Ok(BrokerControl::CycleSubtitle) => {

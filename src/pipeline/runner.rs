@@ -94,6 +94,10 @@ pub enum Control {
     /// Command to seek forward or backward by the specified number of seconds.
     /// Positive values seek forward, negative values seek backward.
     Seek(f64),
+    /// Command to seek to an absolute position in seconds.
+    SeekAbsolute(f64),
+    /// Command to seek to a percentage of the total duration (0.0 to 1.0).
+    SeekPercent(f64),
 }
 
 impl Runner {
@@ -226,10 +230,11 @@ impl Runner {
     /// the RGB data of the processed image.
     fn process_frame(&mut self, frame: &DynamicImage) -> Result<StringInfo, MyError> {
         let procimage = self.pipeline.resize(frame)?;
-        let grayimage = procimage.clone().into_luma8();
-        let rgb_info = procimage.into_rgb8().to_vec();
+        let rgb_image = procimage.into_rgb8();
+        let (width, height) = (rgb_image.width(), rgb_image.height());
+        let rgb_info = rgb_image.into_raw();
 
-        let ascii = self.pipeline.to_ascii(&grayimage);
+        let ascii = self.pipeline.to_ascii_from_rgb(&rgb_info, width, height);
 
         // Add newlines to the rgb_info to match the ascii string These are not
         // really needed, but it's important if you want to copy/paste the
@@ -332,6 +337,14 @@ impl Runner {
                 Control::Seek(seconds) => {
                     self.seek_media(seconds);
                 }
+                Control::SeekAbsolute(seconds) => {
+                    self.seek_media_absolute(seconds);
+                }
+                Control::SeekPercent(pct) => {
+                    if let Some(duration) = self.media.duration_secs() {
+                        self.seek_media_absolute(duration * pct);
+                    }
+                }
             }
         }
         needs_refresh
@@ -411,6 +424,7 @@ impl Runner {
     fn set_char_map(&mut self, char_map: u32) {
         self.pipeline.char_map =
             self.char_maps[(char_map % self.char_maps.len() as u32) as usize].clone();
+        self.pipeline.rebuild_lut();
     }
 
     /// Determines if a frame should be processed based on the current time and the Runner's state.
@@ -456,13 +470,10 @@ impl Runner {
         let frame_diff = target_frame - current_frame;
 
         // Video is AHEAD of Audio (frame_diff < 0)
-        // Check for massive drift that requires seek (e.g. video wrapped or seeked wrongly)
         if frame_diff < 0 {
              let max_lead_frames = (2.0 * self.runner_options.fps) as i64;
              if frame_diff < -max_lead_frames {
-                  if !self.is_streaming {
-                      self.media.seek_to_frame(target_frame.max(0) as usize);
-                  }
+                  self.media.seek_to_frame(target_frame.max(0) as usize);
                   return (true, 0);
              }
              // Just wait for audio to catch up
@@ -568,9 +579,16 @@ impl Runner {
     /// # Arguments
     ///
     /// * `seconds` - The number of seconds to seek. Positive seeks forward, negative seeks backward.
+    /// Seeks the media to an absolute position in seconds.
+    fn seek_media_absolute(&mut self, seconds: f64) {
+        self.media.seek_to_seconds(seconds, self.runner_options.fps);
+        self.last_synced_frame = -1;
+        self.last_frame = None;
+    }
+
     fn seek_media(&mut self, seconds: f64) {
         let at_end = self.media.is_at_end();
-        
+
         if at_end && seconds < 0.0 {
             self.media.reset();
             self.last_synced_frame = -1;

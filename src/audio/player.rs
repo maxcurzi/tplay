@@ -33,6 +33,8 @@ pub trait AudioPlayerControls {
     fn rewind(&mut self) -> Result<(), MyError>;
     fn toggle_mute(&mut self) -> Result<(), MyError>;
     fn seek(&mut self, seconds: f64) -> Result<(), MyError>;
+    fn seek_absolute(&mut self, seconds: f64) -> Result<(), MyError>;
+    fn seek_percent(&mut self, pct: f64) -> Result<(), MyError>;
     fn cycle_subtitle(&mut self) -> Result<(), MyError>;
     fn toggle_subtitle(&mut self) -> Result<(), MyError>;
     fn get_subtitle_text(&self) -> Option<String>;
