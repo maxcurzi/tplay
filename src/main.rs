@@ -84,6 +84,9 @@ struct Args {
     /// Stretch video to fill terminal (ignore aspect ratio)
     #[arg(short, long, default_value = "false")]
     stretch: bool,
+    /// Use smooth (CatmullRom) downscaling instead of nearest-neighbor
+    #[arg(long, default_value = "false")]
+    smooth: bool,
 }
 
 const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
@@ -178,10 +181,13 @@ impl MediaProcessor {
         let auto_exit = args.auto_exit;
         let allow_frame_skip = args.allow_frame_skip;
         let new_lines = args.new_lines;
+        let smooth = args.smooth;
         let preserve_aspect_ratio = !args.stretch;
         let handle = thread::spawn(move || -> Result<(), MyError> {
+            let mut pipeline = ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps, new_lines);
+            pipeline.smooth_resize = smooth;
             let mut runner = pipeline::runner::Runner::new(
-                ImagePipeline::new(DEFAULT_TERMINAL_SIZE, cmaps, new_lines),
+                pipeline,
                 media,
                 tx_frames,
                 rx_controls_pipeline,

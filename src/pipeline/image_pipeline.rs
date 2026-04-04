@@ -19,6 +19,8 @@ pub struct ImagePipeline {
     pub new_lines: bool,
     /// Precomputed lookup table: lut[luminance] → character (avoids per-pixel division)
     lut: [char; 256],
+    /// Use smooth (CatmullRom) downscaling instead of nearest-neighbor
+    pub smooth_resize: bool,
 }
 
 impl ImagePipeline {
@@ -38,6 +40,7 @@ impl ImagePipeline {
             char_map,
             new_lines,
             lut,
+            smooth_resize: false,
         }
     }
 
@@ -112,7 +115,11 @@ impl ImagePipeline {
             .resize(
                 &src_image,
                 &mut dst_image,
-                &fr::ResizeOptions::new().resize_alg(fr::ResizeAlg::Nearest),
+                &fr::ResizeOptions::new().resize_alg(if self.smooth_resize {
+                    fr::ResizeAlg::Convolution(fr::FilterType::CatmullRom)
+                } else {
+                    fr::ResizeAlg::Nearest
+                }),
             )
             .map_err(|err| MyError::Pipeline(format!("{ERROR_RESIZE}:{err:?}")))?;
 
