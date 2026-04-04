@@ -71,6 +71,10 @@ pub struct VideoDecoder {
     eof: bool,
     /// Whether the source is a network stream (affects seek behavior).
     is_streaming: bool,
+    /// PTS (in seconds) of the first decoded frame; used to normalise timestamps
+    /// so that `current_frame` starts at 0 — matching mpv's `time-pos` behaviour.
+    /// `None` until the first frame is decoded.
+    pts_offset_secs: Option<f64>,
 }
 
 // SAFETY: The raw pointers in ffmpeg-next's ScalingContext and decoder contexts
@@ -155,6 +159,7 @@ impl VideoDecoder {
             fps,
             eof: false,
             is_streaming,
+            pts_offset_secs: None,
         })
     }
 
@@ -231,7 +236,10 @@ impl VideoDecoder {
             if let Some(pts) = decoded.pts() {
                 let secs = pts as f64 * self.time_base.numerator() as f64
                     / self.time_base.denominator() as f64;
-                self.current_frame = (secs * self.fps).round() as i64;
+                // Record the first PTS so we can normalise to 0-based time,
+                // matching mpv's `time-pos` which always starts at 0.
+                let offset = *self.pts_offset_secs.get_or_insert(secs);
+                self.current_frame = ((secs - offset) * self.fps).round() as i64;
             } else {
                 self.current_frame += 1;
             }
@@ -274,6 +282,7 @@ impl VideoDecoder {
         let _ = self.input_ctx.seek(0, ..i64::MAX);
         self.decoder.flush();
         self.current_frame = 0;
+        self.pts_offset_secs = None;
         self.eof = false;
     }
 
@@ -305,10 +314,12 @@ impl VideoDecoder {
     /// (or just past) the requested time — matching the old OpenCV behaviour
     /// and keeping `current_frame` accurate for A/V sync.
     fn seek_to_seconds(&mut self, target_secs: f64) -> bool {
+        // Convert from normalised (0-based) time back to absolute stream time
+        let abs_secs = target_secs + self.pts_offset_secs.unwrap_or(0.0);
         // input_ctx.seek with stream_index=-1 expects AV_TIME_BASE (microseconds)
-        let seek_ts = (target_secs * 1_000_000.0) as i64;
+        let seek_ts = (abs_secs * 1_000_000.0) as i64;
         // decode_forward_to compares against PTS in stream time_base units
-        let stream_ts = (target_secs * self.time_base.denominator() as f64
+        let stream_ts = (abs_secs * self.time_base.denominator() as f64
             / self.time_base.numerator() as f64) as i64;
 
         // Seek to the nearest keyframe at or before the target.
@@ -338,10 +349,11 @@ impl VideoDecoder {
                     let mut decoded = FfmpegFrame::empty();
                     while self.decoder.receive_frame(&mut decoded).is_ok() {
                         let pts = decoded.pts().unwrap_or(0);
-                        // Update current_frame from PTS
+                        // Update current_frame from PTS (normalised by offset)
                         let secs = pts as f64 * self.time_base.numerator() as f64
                             / self.time_base.denominator() as f64;
-                        self.current_frame = (secs * self.fps).round() as i64;
+                        let offset = *self.pts_offset_secs.get_or_insert(secs);
+                        self.current_frame = ((secs - offset) * self.fps).round() as i64;
 
                         if pts >= target_ts {
                             return;
@@ -452,7 +464,7 @@ mod tests {
         let img = frame.unwrap();
         assert_eq!(img.width(), 16);
         assert_eq!(img.height(), 16);
-        assert_eq!(decoder.get_position_frames(), 1);
+        assert_eq!(decoder.get_position_frames(), 0);
     }
 
     #[test]
@@ -486,7 +498,7 @@ mod tests {
         let tmp = create_test_video();
         let mut decoder = VideoDecoder::open(tmp.path().to_str().unwrap()).unwrap();
         decoder.skip_frames(3);
-        assert_eq!(decoder.get_position_frames(), 3);
+        assert_eq!(decoder.get_position_frames(), 2);
     }
 
     #[test]
