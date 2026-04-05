@@ -23,7 +23,13 @@ impl MpvAudioPlayer {
     ///
     /// A new AudioPlayer instance.
     pub(crate) fn new(input_path: &str) -> Result<Self, MyError> {
-        let mpv = Mpv::new().expect("Failed to init MPV builder");
+        let mpv = Mpv::with_initializer(|init| {
+            // Allow overriding audio output driver (e.g. TPLAY_AO=null for headless/Docker)
+            if let Ok(ao) = std::env::var("TPLAY_AO") {
+                init.set_option("ao", ao.as_str())?;
+            }
+            Ok(())
+        }).expect("Failed to init MPV builder");
 
         mpv.set_property("vid", "no")
             .map_err(|err| MyError::Audio(format!("Failed to set no-video property: {:?}", err)))?;

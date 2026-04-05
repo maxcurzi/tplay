@@ -261,7 +261,7 @@ fn main() -> Result<(), MyError> {
 
     let num_threads = if audio.is_some() { 4 } else { 3 };
 
-    let (tx_frames, rx_frames) = bounded::<Option<StringInfo>>(1);
+    let (tx_frames, rx_frames) = bounded::<Option<StringInfo>>(2);
 
     let (tx_controls, rx_controls) = unbounded::<MediaControl>();
     let (tx_controls_pipeline, rx_controls_pipeline) = unbounded::<PipelineControl>();

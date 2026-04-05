@@ -34,6 +34,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Suppress ALSA and PipeWire errors (no sound device in container)
+RUN printf 'pcm.!default {\n type null\n}\nctl.!default {\n type null\n}\n' > /etc/asound.conf
+ENV PIPEWIRE_DEBUG=0
+
+# Use MPV null audio output so playback clock advances without a sound device
+ENV TPLAY_AO=null
+
 # Copy the built binary
 COPY --from=builder /build/target/release/tplay /usr/local/bin/tplay
 

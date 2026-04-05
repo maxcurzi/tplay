@@ -8,6 +8,10 @@ pub struct PlaybackClock {
     paused: AtomicBool,
     /// Playback speed stored as f32 bits (use f32::to_bits/from_bits).
     speed_bits: AtomicU32,
+    /// Set when the audio stream has finished (EOF).
+    /// The pipeline should process remaining video frames without waiting for
+    /// the audio clock to advance.
+    finished: AtomicBool,
 }
 
 impl PlaybackClock {
@@ -16,6 +20,7 @@ impl PlaybackClock {
             position_nanos: AtomicU64::new(0),
             paused: AtomicBool::new(true),
             speed_bits: AtomicU32::new(1.0_f32.to_bits()),
+            finished: AtomicBool::new(false),
         }
     }
 
@@ -44,6 +49,14 @@ impl PlaybackClock {
     #[allow(dead_code)]
     pub fn get_speed(&self) -> f32 {
         f32::from_bits(self.speed_bits.load(Ordering::Acquire))
+    }
+
+    pub fn set_finished(&self, finished: bool) {
+        self.finished.store(finished, Ordering::Release);
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.finished.load(Ordering::Acquire)
     }
 }
 
