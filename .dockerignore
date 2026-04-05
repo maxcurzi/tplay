@@ -1,0 +1,28 @@
+# Version control
+.git
+.github
+.gitignore
+
+# IDE
+.vscode
+
+# Build artifacts
+target/
+
+# Assets and media files
+assets/
+*.mkv
+*.mp4
+*.mov
+*.avi
+*.gif
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Misc
+*.patch
+*.xml
+*.orig
+LICENSE
