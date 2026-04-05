@@ -35,6 +35,7 @@ View images, videos (files or YouTube links), webcam, etc directly in the termin
     - [NixOS](#nixos)
     - [Other Distros](#other-distros)
     - [Install Using Cargo](#install-using-cargo)
+    - [Docker](#docker)
   - [For developers](#for-developers)
   - [Feature flags](#feature-flags)
 - [Usage](#usage)
@@ -180,6 +181,42 @@ So that you can run it from anywhere as
 ```bash
 tplay <media> [options]
 ```
+
+### Docker
+
+Docker is the easiest way to run `tplay` — no need to install Rust, FFmpeg, or any other dependencies manually. Just make sure [Docker](https://docs.docker.com/get-docker/) is installed.
+
+**Build the image:**
+
+```bash
+git clone https://github.com/maxcurzi/tplay.git
+cd tplay
+docker build -t tplay .
+```
+
+**Run tplay:**
+
+```bash
+# Show help
+docker run --rm -it tplay --help
+
+# Play a local file (mount the file into the container)
+docker run --rm -it -v /path/to/video.mp4:/media/video.mp4 tplay video.mp4
+
+# Play a YouTube video
+docker run --rm -it tplay https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+# Play with options
+docker run --rm -it -v /path/to/video.mp4:/media/video.mp4 tplay video.mp4 --gray --loop-playback
+
+# Play a remote video
+docker run --rm -it tplay https://media.developer.dolby.com/Atmos/MP4/shattered-3Mb.mp4
+
+# Use webcam (Linux)
+docker run --rm -it --device /dev/video0 tplay /dev/video0
+```
+
+> **Tip:** Always use `-it` (interactive + TTY) so the terminal renders correctly and playback controls work.
 
 ## For developers
 

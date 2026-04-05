@@ -173,7 +173,15 @@ impl Runner {
     fn update_playback_clock(&self) {
         if let Some(ref clock) = self.playback_clock {
             let pos = self.audio_player.player.get_position();
-            clock.set_position(pos);
+            let current = clock.get_position();
+            if pos > Duration::ZERO || current == Duration::ZERO {
+                clock.set_position(pos);
+            } else if !clock.is_finished() && current > Duration::ZERO {
+                // MPV reports 0 after audio EOF – keep last position and
+                // signal that the audio stream has ended so the pipeline
+                // can flush remaining video frames.
+                clock.set_finished(true);
+            }
         }
     }
 

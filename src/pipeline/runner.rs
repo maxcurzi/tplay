@@ -201,13 +201,11 @@ impl Runner {
                     continue;
                 }
 
-                // Check if terminal is ready for the next frame
+                // Process the frame, then try to send it to the terminal thread.
+                // If the terminal isn't ready within the timeout, skip this frame.
+                let string_info = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
                 select! {
-                    send(self.tx_frames, None) -> _ => {
-                        let string_info = self.process_current_frame(frame.as_ref(), frame_needs_refresh);
-                        // Best effort send. If the buffer is full the frame will be dropped
-                        let _ = self.tx_frames.try_send(string_info);
-                    },
+                    send(self.tx_frames, string_info) -> _ => {},
                     default(Duration::from_millis(5)) => {}
                 }
             } else {
@@ -456,6 +454,12 @@ impl Runner {
 
         if clock.is_paused() && self.state == State::Running {
             return (false, 0);
+        }
+
+        // When audio has finished, process remaining frames without sync
+        // so the pipeline can drain to the end and trigger auto-exit.
+        if clock.is_finished() {
+            return (true, 0);
         }
 
         let audio_pos = clock.get_position();
