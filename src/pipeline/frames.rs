@@ -276,7 +276,7 @@ impl FrameIterator {
 ///
 /// A `Result` containing a `FrameData` struct if the media file is successfully opened, or a
 /// `MyError` if an error occurs.
-pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
+pub fn open_media(path: String, browser: Option<String>) -> Result<MediaData, MyError> {
     // Check for streaming protocol URLs (RTSP, RTMP, SRT, UDP, etc.)
     // These go directly to FFmpeg without downloading or domain checks.
     if video_decoder::is_stream_url(&path) && !path.starts_with("http") {
@@ -300,7 +300,7 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
             // handle YouTube domains specially
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
                 // Try streaming first (avoids downloading the entire video)
-                if let Ok(urls) = youtube::get_streaming_url(path.as_str(), broswer.as_str()) {
+                if let Ok(urls) = youtube::get_streaming_url(path.as_str(), browser.as_deref()) {
                     if let Ok(frame_iter) = open_video_from_url(&urls.video) {
                         let fps = frame_iter.source_fps();
                         // Separate audio track when the format isn't muxed;
@@ -314,7 +314,7 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
                     }
                 }
                 // Fall back to full download
-                let video = youtube::download_video(path.as_str(), broswer.as_str())?;
+                let video = youtube::download_video(path.as_str(), browser.as_deref())?;
                 let fps = extract_fps(video.as_os_str().to_str().unwrap_or(""));
                 let video_open = open_video(&video)?;
                 return Ok(MediaData {

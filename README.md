@@ -228,7 +228,7 @@ cargo build --release --no-default-features --features rodio_audio
 | `-l`, `--loop-playback` | Loop video/gif forever (default: do not loop - play once) |
 | `-x`, `--auto-exit` | Exit automatically when the media ends (default: keep displaying the last frame) |
 | `-s`, `--stretch` | Stretch video to fill terminal (ignore aspect ratio) |
-| `-b`, `--browser` | It's used when downloading videos from YouTube, maps to yt-dlp `cookies-from-browser` to prove YouTube you're not a robot. Defaults to "firefox". Supported browsers are: brave, chrome, chromium, edge, firefox, opera, safari, vivaldi, whale |
+| `-b`, `--browser` | Browser passed to yt-dlp `cookies-from-browser` for YouTube (default: `firefox`; use `none` to disable). Supported browsers are: brave, chrome, chromium, edge, firefox, opera, safari, vivaldi, whale |
 
 Substitute `tplay` with `cargo run --release --` if you plan to run from source.
 

@@ -57,9 +57,9 @@ struct Args {
     /// Force a user-specified FPS
     #[arg(short, long)]
     fps: Option<String>,
-    /// import YT cookies from browser (default: firefox)
-    #[arg(short, long, required = false)]
-    browser: Option<String>,
+    /// import YT cookies from browser (default: firefox; use "none" to disable)
+    #[arg(short, long, default_value = DEFAULT_BROWSER)]
+    browser: String,
     /// Loop playing of video/gif
     #[arg(short, long, default_value = "false")]
     loop_playback: bool,
@@ -92,7 +92,6 @@ struct Args {
 const DEFAULT_TERMINAL_SIZE: (u32, u32) = (80, 24);
 const DEFAULT_FPS: f64 = 30.0;
 const DEFAULT_BROWSER: &str = "firefox";
-
 use std::sync::Barrier;
 use std::thread::JoinHandle;
 
@@ -240,13 +239,8 @@ fn main() -> Result<(), MyError> {
     let args = Args::parse();
 
     let title = args.input.clone();
-    let browser = if args.browser.clone().is_some() {
-        args.browser.clone().unwrap()
-    } else {
-        String::from(DEFAULT_BROWSER)
-    };
-
-    let media_data = open_media(title.clone(), browser)?;
+    let browser = (args.browser != "none").then_some(args.browser.as_str());
+    let media_data = open_media(title.clone(), browser.map(str::to_owned))?;
     let media = media_data.frame_iter;
     let fps = media_data.fps;
     let audio = media_data.audio_path;

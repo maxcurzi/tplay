@@ -788,8 +788,7 @@ mod tests {
     fn test_time_to_send_next_frame() {
         let fps = 23.976;
         let loop_playback = false;
-        let media_data =
-            open_media(MEDIA_FILE.to_string(), crate::DEFAULT_BROWSER.to_string()).unwrap();
+        let media_data = open_media(MEDIA_FILE.to_string(), None).unwrap();
         let media = media_data.frame_iter;
         let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
 
@@ -853,8 +852,7 @@ mod tests {
     fn test_playback_speed_affects_frame_duration() {
         let fps = 30.0;
         let loop_playback = false;
-        let media_data =
-            open_media(MEDIA_FILE.to_string(), crate::DEFAULT_BROWSER.to_string()).unwrap();
+        let media_data = open_media(MEDIA_FILE.to_string(), None).unwrap();
         let media = media_data.frame_iter;
         let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
 
@@ -888,8 +886,7 @@ mod tests {
     fn test_playback_speed_clamping() {
         let fps = 30.0;
         let loop_playback = false;
-        let media_data =
-            open_media(MEDIA_FILE.to_string(), crate::DEFAULT_BROWSER.to_string()).unwrap();
+        let media_data = open_media(MEDIA_FILE.to_string(), None).unwrap();
         let media = media_data.frame_iter;
         let pipeline = ImagePipeline::new((23, 80), CHARS1.chars().collect(), false);
 
