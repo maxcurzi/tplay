@@ -56,6 +56,9 @@ pub struct Runner {
     source_dimensions: Option<(u32, u32)>,
     /// Whether the source is a network stream (affects sync behavior)
     is_streaming: bool,
+    /// When the audio clock was last pulled back to the video position, so a
+    /// stream that can't keep up doesn't stutter the audio every iteration.
+    last_audio_resync: Option<std::time::Instant>,
     /// Current terminal dimensions in characters (for padding output)
     terminal_cols: u32,
     terminal_rows: u32,
@@ -99,6 +102,7 @@ pub enum Control {
     /// Command to seek to a percentage of the total duration (0.0 to 1.0).
     SeekPercent(f64),
 }
+
 
 impl Runner {
     /// Initializes a new Runner instance.
@@ -150,6 +154,7 @@ impl Runner {
             last_synced_frame: -1,
             source_dimensions,
             is_streaming,
+            last_audio_resync: None,
             terminal_cols: DEFAULT_TERMINAL_SIZE.0,
             terminal_rows: DEFAULT_TERMINAL_SIZE.1,
         }
@@ -578,6 +583,13 @@ impl Runner {
         }
 
         if self.is_streaming && frame_diff > 1 {
+            // A rate-limited stream can't be decoded much faster than
+            // realtime, so a large gap will never close by skipping. Pull the
+            // audio back to the video instead of freezing the picture.
+            if frame_diff > (2.0 * self.runner_options.fps) as i64 {
+                self.resync_audio_to_video(Duration::from_secs(2));
+                return (true, 0);
+            }
             // For streams, skip frames directly here (not gated by the
             // allow_frame_skip CLI flag) so we discard them silently
             // instead of playing them in fast-forward. Cap per iteration
@@ -585,10 +597,9 @@ impl Runner {
             let skip = ((frame_diff as usize) - 1)
                 .min((self.runner_options.fps as usize).max(1));
             self.media.skip_frames(skip);
-            // Tell the run loop NOT to process/display a frame this iteration.
-            // We'll keep skipping each iteration until we've caught up, then
-            // resume normal display.
-            return (false, 0);
+            // Display the frame we landed on: showing nothing while catching
+            // up leaves the picture frozen with the audio still playing.
+            return (true, 0);
         }
 
         // Small gap: Skip 'frame_diff' frames.
@@ -658,6 +669,9 @@ impl Runner {
         self.media.seek_to_seconds(seconds, self.runner_options.fps);
         self.last_synced_frame = -1;
         self.last_frame = None;
+        if self.is_streaming {
+            self.resync_audio_to_video(Duration::ZERO);
+        }
     }
 
     fn seek_media(&mut self, seconds: f64) {
@@ -671,6 +685,32 @@ impl Runner {
             self.last_synced_frame = -1;
         }
         self.last_frame = None;
+        if self.is_streaming {
+            self.resync_audio_to_video(Duration::ZERO);
+        }
+    }
+
+    /// Moves the audio clock to the video's current position.
+    ///
+    /// Audio is the master clock, but it can't always be followed: seeking a
+    /// network stream lands on a keyframe rather than an exact frame, and a
+    /// rate-limited source can't be decoded faster than realtime, so a video
+    /// that falls behind can never catch up by skipping. In both cases the
+    /// audio is moved to the video instead. Rate-limited so repeated calls
+    /// don't chop up playback.
+    fn resync_audio_to_video(&mut self, min_interval: Duration) {
+        if self.playback_clock.is_none() {
+            return;
+        }
+        let now = std::time::Instant::now();
+        if let Some(last) = self.last_audio_resync {
+            if now.duration_since(last) < min_interval {
+                return;
+            }
+        }
+        self.last_audio_resync = Some(now);
+        let secs = self.media.get_position_frames() as f64 / self.runner_options.fps;
+        let _ = self.send_control(MediaControl::ResyncAudio(secs.max(0.0)));
     }
 
     /// Sends a control command to the media processing thread.

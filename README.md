@@ -91,7 +91,7 @@ These instructions will get you a copy of the project up and running on your loc
 Being a Rust crate, you will need to have Rust installed on your system. You can find the installation instructions [here](https://www.rust-lang.org/tools/install).
 
 The following dependencies are also required:
-- [FFmpeg](https://ffmpeg.org/download.html) (development libraries) — Tested with FFmpeg 6.1 (Linux) and 7.x (macOS/Homebrew)
+- [FFmpeg](https://ffmpeg.org/download.html) (development libraries) — Tested with FFmpeg 6.1 and 7.1 (Linux) and 9.x (macOS/Homebrew)
 - [libmpv-dev](https://mpv.io/installation/) (development libraries for audio playback and subtitles)
 - Optional dependency for YouTube playback support: [yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/installation)
 
@@ -140,7 +140,7 @@ cargo install tplay --force # update existing
 ```
 
 **Troubleshooting (one-off FFmpeg selection):**
-If the FFmpeg check fails, try Homebrew’s versioned formula for this command only:
+If the FFmpeg check fails, point `pkg-config` at a specific Homebrew formula for this command only:
 
 ```bash
 brew install ffmpeg@7

@@ -193,6 +193,20 @@ impl FrameIterator {
         }
     }
 
+    /// Returns the frame rate reported by the source, if it knows one.
+    ///
+    /// Avoids a second `ffprobe` pass over the media, which for a network
+    /// stream means opening and probing the URL all over again.
+    pub fn source_fps(&self) -> Option<f64> {
+        match self {
+            FrameIterator::Video(video) => {
+                let fps = video.fps();
+                (fps > 0.0).then_some(fps)
+            }
+            _ => None,
+        }
+    }
+
     /// Returns whether the source is a network stream.
     pub fn is_streaming(&self) -> bool {
         matches!(self, FrameIterator::Video(video) if video.is_streaming())
@@ -289,15 +303,16 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
             // handle YouTube domains specially
             if domain.ends_with("youtube.com") || domain.ends_with("youtu.be") {
                 // Try streaming first (avoids downloading the entire video)
-                if let Ok(streaming_url) =
-                    youtube::get_streaming_url(path.as_str(), broswer.as_str())
-                {
-                    if let Ok(frame_iter) = open_video_from_url(&streaming_url) {
-                        let fps = extract_fps(&streaming_url);
+                if let Ok(urls) = youtube::get_streaming_url(path.as_str(), broswer.as_str()) {
+                    if let Ok(frame_iter) = open_video_from_url(&urls.video) {
+                        let fps = frame_iter.source_fps();
+                        // Separate audio track when the format isn't muxed;
+                        // otherwise MPV plays the audio of the same stream.
+                        let audio = urls.audio.unwrap_or(urls.video);
                         return Ok(MediaData {
                             frame_iter,
                             fps,
-                            audio_path: Some(Either::Right(streaming_url)),
+                            audio_path: Some(Either::Right(audio)),
                         });
                     }
                 }
@@ -334,7 +349,7 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
                 if !is_image {
                     match open_video_from_url(&url_str) {
                         Ok(frame_iter) => {
-                            let fps = extract_fps(&url_str);
+                            let fps = frame_iter.source_fps().or_else(|| extract_fps(&url_str));
                             let audio = if has_audio(&url_str).unwrap_or(false) {
                                 Some(Either::Right(url_str))
                             } else {

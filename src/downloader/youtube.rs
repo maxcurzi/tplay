@@ -9,10 +9,30 @@ use crate::common::errors::MyError;
 use std::process::{Command, Stdio};
 use tempfile::{self, TempPath};
 
-/// Extracts a direct streaming URL from a YouTube video using `yt-dlp -g`.
+/// Direct URLs for a YouTube video, as returned by `yt-dlp -g`.
 ///
-/// Returns a muxed (video+audio) streaming URL that can be passed directly to
-/// ffmpeg or MPV without downloading the entire file first.
+/// YouTube rarely offers pre-muxed formats above 360p, so the video and audio
+/// tracks usually live at separate URLs. FFmpeg decodes `video` while MPV plays
+/// `audio`, so there is no need to download and mux anything up front.
+pub struct StreamUrls {
+    /// URL of the video track (or of a muxed stream, when one is available).
+    pub video: String,
+    /// URL of the separate audio track, if the selected format is not muxed.
+    pub audio: Option<String>,
+}
+
+/// Format selection for streaming playback.
+///
+/// Prefers a 720p H.264 track (cheapest to decode, and far more resolution than
+/// a terminal can show) and falls back progressively so that videos without a
+/// matching format still stream instead of being downloaded in full.
+const STREAM_FORMAT: &str =
+    "bv*[height<=?720][vcodec^=avc1]+ba/b[height<=?720]/bv*[height<=?720]+ba/bv*+ba/b";
+
+/// Extracts direct streaming URLs from a YouTube video using `yt-dlp -g`.
+///
+/// Returns URLs that can be passed straight to FFmpeg/MPV without downloading
+/// the entire video first.
 ///
 /// # Arguments
 ///
@@ -21,9 +41,9 @@ use tempfile::{self, TempPath};
 ///
 /// # Returns
 ///
-/// * `Ok(String)` - The direct streaming URL.
+/// * `Ok(StreamUrls)` - The direct streaming URLs.
 /// * `Err(MyError)` - An error if URL extraction fails.
-pub fn get_streaming_url(url: &str, browser: &str) -> Result<String, MyError> {
+pub fn get_streaming_url(url: &str, browser: &str) -> Result<StreamUrls, MyError> {
     if Command::new("yt-dlp").output().is_err() {
         return Err(MyError::Application(
             "yt-dlp is not installed.
@@ -36,30 +56,33 @@ See https://github.com/yt-dlp/yt-dlp/wiki/Installation"
     let output = Command::new("yt-dlp")
         .arg("-g")
         .arg("-f")
-        .arg("best")
+        .arg(STREAM_FORMAT)
         .arg("--cookies-from-browser")
         .arg(browser)
         .arg(url)
         .output()
         .map_err(|e| MyError::Application(format!("Failed to run yt-dlp: {}", e)))?;
 
-    if output.status.success() {
-        let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if url.is_empty() {
-            Err(MyError::Application(
-                "yt-dlp returned empty URL".to_string(),
-            ))
-        } else {
-            // yt-dlp may return multiple lines if separate video/audio streams;
-            // take the first line (the video+audio muxed URL with -f best)
-            let first_url = url.lines().next().unwrap_or(&url).to_string();
-            Ok(first_url)
-        }
-    } else {
-        Err(MyError::Application(format!(
+    if !output.status.success() {
+        return Err(MyError::Application(format!(
             "yt-dlp failed to extract URL: {}",
             String::from_utf8_lossy(&output.stderr)
-        )))
+        )));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // With a `video+audio` selection yt-dlp prints the video URL first, then
+    // the audio URL. A muxed selection prints a single line.
+    let mut urls = stdout.lines().map(str::trim).filter(|l| !l.is_empty());
+
+    match urls.next() {
+        Some(video) => Ok(StreamUrls {
+            video: video.to_string(),
+            audio: urls.next().map(str::to_string),
+        }),
+        None => Err(MyError::Application(
+            "yt-dlp returned empty URL".to_string(),
+        )),
     }
 }
 

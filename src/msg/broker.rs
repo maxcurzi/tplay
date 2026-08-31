@@ -40,6 +40,10 @@ pub enum Control {
     SeekAbsolute(f64),
     /// Command to seek to a percentage of the total duration (0.0 to 1.0).
     SeekPercent(f64),
+    /// Command to move audio (the master clock) to the video's actual position.
+    /// Sent by the pipeline when the video can't be placed exactly where the
+    /// audio is — seeking a network stream lands on a keyframe, not a frame.
+    ResyncAudio(f64),
     /// Command to cycle through available subtitle tracks.
     CycleSubtitle,
     /// Command to toggle subtitle visibility on/off.
@@ -177,6 +181,12 @@ impl MessageBroker {
                             }
                             if let Some(tx) = &self.tx_channel_audio {
                                 let _ = tx.send(AudioControl::SeekPercent(pct));
+                            }
+                        }
+                        Ok(BrokerControl::ResyncAudio(seconds)) => {
+                            // Audio only: the video is already there.
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::SeekAbsolute(seconds));
                             }
                         }
                         Ok(BrokerControl::CycleSubtitle) => {

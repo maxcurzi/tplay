@@ -69,6 +69,9 @@ pub struct VideoDecoder {
     fps: f64,
     /// Whether we've reached EOF.
     eof: bool,
+    /// Whether the demuxer is exhausted and the decoder is being drained of
+    /// the frames it still holds (frame-threaded decoding buffers several).
+    draining: bool,
     /// Whether the source is a network stream (affects seek behavior).
     is_streaming: bool,
     /// PTS (in seconds) of the first decoded frame; used to normalise timestamps
@@ -114,8 +117,18 @@ impl VideoDecoder {
         let stream_duration = stream.duration();
         let total_frames = stream.frames();
 
-        let context_decoder = ffmpeg::codec::context::Context::from_parameters(stream.parameters())
-            .map_err(|e| MyError::Application(format!("{}: {:?}", ERROR_OPENING_VIDEO, e)))?;
+        let mut context_decoder =
+            ffmpeg::codec::context::Context::from_parameters(stream.parameters())
+                .map_err(|e| MyError::Application(format!("{}: {:?}", ERROR_OPENING_VIDEO, e)))?;
+
+        // Decode across all cores; `count: 0` lets FFmpeg pick the thread count.
+        // Without this the decoder is single-threaded, which can't keep up with
+        // high-resolution H.264/AV1 streams.
+        // (`Config::kind` rather than a struct literal: the struct grows an
+        // extra field when built against FFmpeg older than 6.0.)
+        context_decoder.set_threading(ffmpeg::threading::Config::kind(
+            ffmpeg::threading::Type::Frame,
+        ));
 
         let decoder = context_decoder
             .decoder()
@@ -158,13 +171,13 @@ impl VideoDecoder {
             current_frame: 0,
             fps,
             eof: false,
+            draining: false,
             is_streaming,
             pts_offset_secs: None,
         })
     }
 
     /// Returns the FPS of the video.
-    #[allow(dead_code)]
     pub fn fps(&self) -> f64 {
         self.fps
     }
@@ -205,6 +218,11 @@ impl VideoDecoder {
         if let Some(img) = self.receive_frame() {
             return Some(img);
         }
+        if self.draining {
+            // The decoder has handed back everything it had buffered.
+            self.eof = true;
+            return None;
+        }
         // Feed packets until we get a frame or reach EOF
         loop {
             match self.next_video_packet() {
@@ -217,10 +235,14 @@ impl VideoDecoder {
                     }
                 }
                 None => {
-                    // EOF — flush the decoder
+                    // Demuxer exhausted — flush the decoder and drain the
+                    // frames it still holds, one per call.
+                    self.draining = true;
                     let _ = self.decoder.send_eof();
                     let img = self.receive_frame();
-                    self.eof = true;
+                    if img.is_none() {
+                        self.eof = true;
+                    }
                     return img;
                 }
             }
@@ -284,6 +306,7 @@ impl VideoDecoder {
         self.current_frame = 0;
         self.pts_offset_secs = None;
         self.eof = false;
+        self.draining = false;
     }
 
     /// Returns whether the decoder has reached the end of the stream.
@@ -328,10 +351,21 @@ impl VideoDecoder {
         if result {
             self.decoder.flush();
             self.eof = false;
+            self.draining = false;
 
-            // Decode forward from the keyframe to the exact target
-            // for frame-accurate seeking.
-            self.decode_forward_to(stream_ts);
+            if self.is_streaming {
+                // Decoding forward to the exact frame costs seconds on a
+                // rate-limited network stream (the keyframe seek itself takes
+                // ~0.1s, walking to the target ~3s), and the audio runs away
+                // during the wait. Land on the keyframe and decode a single
+                // frame so `current_frame` reflects where we actually are;
+                // callers resync the audio to that position.
+                self.decode_forward_to(i64::MIN);
+            } else {
+                // Decode forward from the keyframe to the exact target
+                // for frame-accurate seeking.
+                self.decode_forward_to(stream_ts);
+            }
         }
         result
     }
@@ -346,27 +380,44 @@ impl VideoDecoder {
                     if self.decoder.send_packet(&packet).is_err() {
                         continue;
                     }
-                    let mut decoded = FfmpegFrame::empty();
-                    while self.decoder.receive_frame(&mut decoded).is_ok() {
-                        let pts = decoded.pts().unwrap_or(0);
-                        // Update current_frame from PTS (normalised by offset)
-                        let secs = pts as f64 * self.time_base.numerator() as f64
-                            / self.time_base.denominator() as f64;
-                        let offset = *self.pts_offset_secs.get_or_insert(secs);
-                        self.current_frame = ((secs - offset) * self.fps).round() as i64;
-
-                        if pts >= target_ts {
-                            return;
-                        }
+                    if self.consume_decoded_up_to(target_ts) {
+                        return;
                     }
                 }
                 None => {
-                    // Hit EOF while decoding forward
-                    self.eof = true;
+                    // Ran out of packets: the decoder may still hold buffered
+                    // frames (frame-threaded decoding lags behind the input),
+                    // so flush it before declaring EOF.
+                    self.draining = true;
+                    let _ = self.decoder.send_eof();
+                    if !self.consume_decoded_up_to(target_ts) {
+                        self.eof = true;
+                    }
                     return;
                 }
             }
         }
+    }
+
+    /// Consumes the frames the decoder currently holds, keeping `current_frame`
+    /// up to date, and stops once one reaches `target_ts`.
+    ///
+    /// Returns `true` if the target was reached.
+    fn consume_decoded_up_to(&mut self, target_ts: i64) -> bool {
+        let mut decoded = FfmpegFrame::empty();
+        while self.decoder.receive_frame(&mut decoded).is_ok() {
+            let pts = decoded.pts().unwrap_or(0);
+            // Update current_frame from PTS (normalised by offset)
+            let secs = pts as f64 * self.time_base.numerator() as f64
+                / self.time_base.denominator() as f64;
+            let offset = *self.pts_offset_secs.get_or_insert(secs);
+            self.current_frame = ((secs - offset) * self.fps).round() as i64;
+
+            if pts >= target_ts {
+                return true;
+            }
+        }
+        false
     }
 
     /// Seeks to a specific frame index (0-based).
