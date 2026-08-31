@@ -1,6 +1,6 @@
 [package]
 name = "tplay"
-version = "0.9.3"
+version = "0.10.0"
 edition = "2024"
 authors = ["Max Curzi <massimiliano.curzi@gmail.com>"]
 description = "A media player that visualizes images and videos as ASCII art directly in the terminal (with sound)."

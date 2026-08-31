@@ -3,5 +3,5 @@
 mod extractor;
 mod parser;
 
-pub use extractor::{extract_subtitles, SubtitleTrack};
+pub use extractor::{SubtitleTrack, extract_subtitles};
 pub use parser::SubtitleManager;

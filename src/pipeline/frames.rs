@@ -18,7 +18,7 @@ use std::{
     io::{Read, Write},
     path::Path,
 };
-use tempfile::{tempdir, TempPath};
+use tempfile::{TempPath, tempdir};
 use url::Url;
 
 /// An iterator over the frames of a media file.
@@ -122,10 +122,7 @@ impl FrameIterator {
             FrameIterator::Video(video) => {
                 video.reset();
             }
-            FrameIterator::AnimatedImage {
-                current_frame,
-                ..
-            } => {
+            FrameIterator::AnimatedImage { current_frame, .. } => {
                 *current_frame = 0;
             }
         }
@@ -338,8 +335,14 @@ pub fn open_media(path: String, broswer: String) -> Result<MediaData, MyError> {
                 // For video-like URLs, try streaming directly via ffmpeg
                 let is_image = matches!(
                     ext,
-                    Some("png") | Some("jpg") | Some("jpeg") | Some("bmp")
-                        | Some("gif") | Some("webp") | Some("tif") | Some("tiff")
+                    Some("png")
+                        | Some("jpg")
+                        | Some("jpeg")
+                        | Some("bmp")
+                        | Some("gif")
+                        | Some("webp")
+                        | Some("tif")
+                        | Some("tiff")
                         | Some("ico")
                 );
                 // Streaming manifests (m3u8, mpd) must be opened directly by FFmpeg;

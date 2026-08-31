@@ -6,12 +6,12 @@
 //! resizing, and changing character maps during playback.
 use super::{frames::FrameIterator, image_pipeline::ImagePipeline};
 use crate::{
+    DEFAULT_TERMINAL_SIZE, StringInfo,
     common::{errors::MyError, sync::PlaybackClock},
     msg::broker::Control as MediaControl,
     pipeline::char_maps::*,
-    StringInfo, DEFAULT_TERMINAL_SIZE,
 };
-use crossbeam_channel::{select, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, select};
 use crossterm::terminal;
 use image::DynamicImage;
 use std::{sync::Arc, thread, time::Duration};
@@ -103,7 +103,6 @@ pub enum Control {
     SeekPercent(f64),
 }
 
-
 impl Runner {
     /// Initializes a new Runner instance.
     ///
@@ -177,7 +176,7 @@ impl Runner {
         let mut time_count = std::time::Instant::now();
         // make sure the first frame is shown immediately
         time_count -= self.target_frame_duration();
-        
+
         while self.state != State::Stopped {
             let frame_needs_refresh = self.process_control_commands();
 
@@ -186,7 +185,7 @@ impl Runner {
             } else {
                 self.should_process_frame(&mut time_count)
             };
-            
+
             if should_process_frame {
                 if frames_to_skip > 0 && allow_frame_skip {
                     self.media.skip_frames(frames_to_skip);
@@ -240,9 +239,11 @@ impl Runner {
         let rgb_info = rgb_image.into_raw();
 
         if self.pipeline.half_block_mode {
+            let (ascii, rgb_data) = self
+                .pipeline
+                .to_half_blocks_from_rgb(&rgb_info, width, height);
             let (ascii, rgb_data) =
-                self.pipeline.to_half_blocks_from_rgb(&rgb_info, width, height);
-            let (ascii, rgb_data) = self.pad_to_terminal_halfblock(ascii, rgb_data, width, height / 2);
+                self.pad_to_terminal_halfblock(ascii, rgb_data, width, height / 2);
             return Ok((ascii, rgb_data));
         }
 
@@ -455,31 +456,28 @@ impl Runner {
         self.terminal_cols = term_w;
         self.terminal_rows = term_h;
 
-        let (target_w, target_h) =
-            if self.runner_options.preserve_aspect_ratio {
-                if let Some((src_w, src_h)) = self.source_dimensions {
-                    let char_ar = Self::char_aspect_ratio();
-                    let src_w = src_w as f64;
-                    let src_h = src_h as f64;
-                    let tw = term_w as f64;
-                    let th = term_h as f64;
+        let (target_w, target_h) = if self.runner_options.preserve_aspect_ratio {
+            if let Some((src_w, src_h)) = self.source_dimensions {
+                let char_ar = Self::char_aspect_ratio();
+                let src_w = src_w as f64;
+                let src_h = src_h as f64;
+                let tw = term_w as f64;
+                let th = term_h as f64;
 
-                    let scale_w = tw / src_w;
-                    let scale_h = (th * char_ar) / src_h;
-                    let scale = scale_w.min(scale_h);
+                let scale_w = tw / src_w;
+                let scale_h = (th * char_ar) / src_h;
+                let scale = scale_w.min(scale_h);
 
-                    let display_w = (src_w * scale).round().max(1.0) as u32;
-                    let display_h = (src_h * scale / char_ar)
-                        .round()
-                        .max(1.0) as u32;
+                let display_w = (src_w * scale).round().max(1.0) as u32;
+                let display_h = (src_h * scale / char_ar).round().max(1.0) as u32;
 
-                    (display_w.min(term_w), display_h.min(term_h))
-                } else {
-                    (term_w, term_h)
-                }
+                (display_w.min(term_w), display_h.min(term_h))
             } else {
                 (term_w, term_h)
-            };
+            }
+        } else {
+            (term_w, term_h)
+        };
 
         // In half-block mode, we need 2x the pixel height since each terminal row
         // represents 2 vertical pixels
@@ -550,13 +548,13 @@ impl Runner {
 
         // Video is AHEAD of Audio (frame_diff < 0)
         if frame_diff < 0 {
-             let max_lead_frames = (2.0 * self.runner_options.fps) as i64;
-             if frame_diff < -max_lead_frames {
-                  self.media.seek_to_frame(target_frame.max(0) as usize);
-                  return (true, 0);
-             }
-             // Just wait for audio to catch up
-             return (false, 0);
+            let max_lead_frames = (2.0 * self.runner_options.fps) as i64;
+            if frame_diff < -max_lead_frames {
+                self.media.seek_to_frame(target_frame.max(0) as usize);
+                return (true, 0);
+            }
+            // Just wait for audio to catch up
+            return (false, 0);
         }
 
         // Video is BEHIND Audio (frame_diff > 0)
@@ -577,9 +575,9 @@ impl Runner {
         };
 
         if frame_diff > skip_limit {
-             // Too far behind, use seek
-             self.media.seek_to_frame(target_frame.max(0) as usize);
-             return (true, 0);
+            // Too far behind, use seek
+            self.media.seek_to_frame(target_frame.max(0) as usize);
+            return (true, 0);
         }
 
         if self.is_streaming && frame_diff > 1 {
@@ -594,8 +592,7 @@ impl Runner {
             // allow_frame_skip CLI flag) so we discard them silently
             // instead of playing them in fast-forward. Cap per iteration
             // to avoid blocking too long on network reads.
-            let skip = ((frame_diff as usize) - 1)
-                .min((self.runner_options.fps as usize).max(1));
+            let skip = ((frame_diff as usize) - 1).min((self.runner_options.fps as usize).max(1));
             self.media.skip_frames(skip);
             // Display the frame we landed on: showing nothing while catching
             // up leaves the picture frozen with the audio still playing.
@@ -777,11 +774,11 @@ impl Runner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::StringInfo;
     use crate::pipeline::{
         char_maps::CHARS1, frames::open_media, image_pipeline::ImagePipeline,
         runner::Control as PipelineControl,
     };
-    use crate::StringInfo;
     use crossbeam_channel::{bounded, unbounded};
 
     const MEDIA_FILE: &str =

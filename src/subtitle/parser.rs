@@ -47,9 +47,9 @@ impl SubtitleManager {
 
     #[allow(dead_code)]
     pub fn current_track_info(&self) -> Option<(usize, Option<&str>)> {
-        self.tracks.get(self.current_track).map(|(track, _)| {
-            (self.current_track, track.language.as_deref())
-        })
+        self.tracks
+            .get(self.current_track)
+            .map(|(track, _)| (self.current_track, track.language.as_deref()))
     }
 
     pub fn cycle_track(&mut self) {
@@ -78,13 +78,13 @@ impl SubtitleManager {
         }
 
         let (_, entries) = &self.tracks[self.current_track];
-        
+
         for entry in entries {
             if position >= entry.start && position <= entry.end {
                 return Some(&entry.text);
             }
         }
-        
+
         None
     }
 }
@@ -97,7 +97,7 @@ fn parse_srt_file(path: &Path) -> Option<Vec<SubtitleEntry>> {
 fn parse_srt(content: &str) -> Vec<SubtitleEntry> {
     let mut entries = Vec::new();
     let mut lines = content.lines().peekable();
-    
+
     while lines.peek().is_some() {
         while let Some(line) = lines.peek() {
             if line.trim().parse::<u32>().is_ok() {
@@ -156,7 +156,7 @@ fn parse_timing_line(line: &str) -> Option<(Duration, Duration)> {
 fn parse_timestamp(ts: &str) -> Option<Duration> {
     let ts = ts.split(',').next()?.trim();
     let ts = ts.split('.').next()?.trim();
-    
+
     let parts: Vec<&str> = ts.split(':').collect();
     if parts.len() != 3 {
         return None;
@@ -171,26 +171,28 @@ fn parse_timestamp(ts: &str) -> Option<Duration> {
 fn strip_formatting(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
-    
+
     while let Some(ch) = chars.next() {
         match ch {
             '<' => {
                 // Skip until '>'
                 while let Some(c) = chars.next() {
-                    if c == '>' { break; }
+                    if c == '>' {
+                        break;
+                    }
                 }
             }
             '{' if chars.peek() == Some(&'\\') => {
                 // Skip ASS tags: {\...}
                 while let Some(c) = chars.next() {
-                    if c == '}' { break; }
+                    if c == '}' {
+                        break;
+                    }
                 }
             }
             '&' => {
                 // Handle HTML entities
-                let entity: String = chars.by_ref()
-                    .take_while(|&c| c != ';')
-                    .collect();
+                let entity: String = chars.by_ref().take_while(|&c| c != ';').collect();
                 result.push(match entity.as_str() {
                     "nbsp" => ' ',
                     "lt" => '<',
@@ -207,6 +209,6 @@ fn strip_formatting(text: &str) -> String {
             _ => result.push(ch),
         }
     }
-    
+
     result.split_whitespace().collect::<Vec<_>>().join(" ")
 }

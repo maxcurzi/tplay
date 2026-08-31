@@ -17,7 +17,11 @@ fn main() {
             }
             let prefix = String::from_utf8(output.stdout).ok()?;
             let prefix = prefix.trim().to_owned();
-            if prefix.is_empty() { None } else { Some(prefix) }
+            if prefix.is_empty() {
+                None
+            } else {
+                Some(prefix)
+            }
         };
 
         for args in [&[][..], &["mpv"][..], &["ffmpeg"][..]] {
@@ -31,7 +35,9 @@ fn main() {
     let user_rodio_audio = env::var("CARGO_FEATURE_RODIO_AUDIO").is_ok();
 
     if user_mpv && user_rodio_audio {
-        eprintln!("Error: At most one of the following features can be enabled at a time: mpv, rodio_audio.");
+        eprintln!(
+            "Error: At most one of the following features can be enabled at a time: mpv, rodio_audio."
+        );
         std::process::exit(1);
     }
 

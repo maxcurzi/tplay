@@ -17,13 +17,13 @@ use crossbeam_channel::{bounded, unbounded};
 use either::Either;
 use msg::broker::Control as MediaControl;
 use pipeline::{
-    char_maps::CHARS3, frames::open_media, frames::FrameIterator, image_pipeline::ImagePipeline,
+    char_maps::CHARS3, frames::FrameIterator, frames::open_media, image_pipeline::ImagePipeline,
     runner::Control as PipelineControl, runner::RunnerOptions,
 };
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use subtitle::{extract_subtitles, SubtitleManager};
+use subtitle::{SubtitleManager, extract_subtitles};
 use terminal::Terminal;
 
 pub type StringInfo = (String, Vec<u8>);
@@ -217,7 +217,12 @@ impl MediaProcessor {
         let barrier = Arc::clone(&self.barrier);
         let handle = thread::spawn(move || -> Result<(), MyError> {
             let player = audio::player::AudioPlayer::new(&file_path)?;
-            let mut runner = audio::runner::Runner::new(player, rx_controls_audio, subtitle_text, playback_clock);
+            let mut runner = audio::runner::Runner::new(
+                player,
+                rx_controls_audio,
+                subtitle_text,
+                playback_clock,
+            );
             runner.run(barrier)
         });
         self.handles.push(handle);
@@ -247,7 +252,7 @@ fn main() -> Result<(), MyError> {
     let audio = media_data.audio_path;
 
     let is_local_file = Path::new(&args.input).exists();
-    
+
     let local_subtitles = if is_local_file {
         let tracks = extract_subtitles(Path::new(&args.input));
         if tracks.is_empty() {
@@ -312,12 +317,15 @@ fn main() -> Result<(), MyError> {
     if let Some(audio) = &audio {
         let title = args.input.clone();
         let file_path = match audio.as_ref() {
-            Either::Left(audio_track) => {
-                String::from(audio_track.to_str().unwrap_or(&title))
-            }
+            Either::Left(audio_track) => String::from(audio_track.to_str().unwrap_or(&title)),
             Either::Right(path_string) => path_string.clone(),
         };
-        media_processor.launch_audio_thread(file_path, rx_controls_audio, subtitle_text, playback_clock)?;
+        media_processor.launch_audio_thread(
+            file_path,
+            rx_controls_audio,
+            subtitle_text,
+            playback_clock,
+        )?;
     }
 
     media_processor.join_threads();

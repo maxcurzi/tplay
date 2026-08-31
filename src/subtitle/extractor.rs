@@ -59,10 +59,14 @@ pub fn extract_subtitles(media_path: &Path) -> Vec<SubtitleTrack> {
 fn get_subtitle_streams(media_path: &Path) -> Option<Vec<(u32, Option<String>)>> {
     let output = Command::new("ffprobe")
         .args([
-            "-v", "error",
-            "-select_streams", "s",
-            "-show_entries", "stream=index:stream_tags=language",
-            "-of", "json",
+            "-v",
+            "error",
+            "-select_streams",
+            "s",
+            "-show_entries",
+            "stream=index:stream_tags=language",
+            "-of",
+            "json",
         ])
         .arg(media_path)
         .output()
@@ -73,7 +77,7 @@ fn get_subtitle_streams(media_path: &Path) -> Option<Vec<(u32, Option<String>)>>
     }
 
     let probe: FfprobeOutput = serde_json::from_slice(&output.stdout).ok()?;
-    
+
     Some(
         probe
             .streams
@@ -95,16 +99,9 @@ fn extract_single_subtitle(
     let temp_path = temp_file.path().to_path_buf();
 
     let status = Command::new("ffmpeg")
-        .args([
-            "-y",
-            "-v", "error",
-            "-i",
-        ])
+        .args(["-y", "-v", "error", "-i"])
         .arg(media_path)
-        .args([
-            "-map", &format!("0:{}", stream_index),
-            "-f", "srt",
-        ])
+        .args(["-map", &format!("0:{}", stream_index), "-f", "srt"])
         .arg(&temp_path)
         .status()
         .ok()?;

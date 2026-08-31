@@ -7,11 +7,11 @@ use crate::common::errors::*;
 use image::{DynamicImage, ImageBuffer, Rgb};
 
 use ffmpeg_next as ffmpeg;
-use ffmpeg_next::format::{input, input_with_dictionary, Pixel};
+use ffmpeg_next::Dictionary;
+use ffmpeg_next::format::{Pixel, input, input_with_dictionary};
 use ffmpeg_next::media::Type;
 use ffmpeg_next::software::scaling::{context::Context as ScalingContext, flag::Flags};
 use ffmpeg_next::util::frame::video::Video as FfmpegFrame;
-use ffmpeg_next::Dictionary;
 
 use std::sync::Once;
 

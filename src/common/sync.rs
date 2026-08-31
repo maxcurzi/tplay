@@ -20,7 +20,8 @@ impl PlaybackClock {
     }
 
     pub fn set_position(&self, pos: Duration) {
-        self.position_nanos.store(pos.as_nanos() as u64, Ordering::Release);
+        self.position_nanos
+            .store(pos.as_nanos() as u64, Ordering::Release);
     }
 
     pub fn get_position(&self) -> Duration {
