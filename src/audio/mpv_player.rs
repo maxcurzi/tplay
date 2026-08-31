@@ -42,6 +42,8 @@ impl MpvAudioPlayer {
                 ))
             })?;
 
+        mpv.set_property("keep-open", "yes")
+            .map_err(|err| MyError::Audio(format!("Failed to set keep-open: {:?}", err)))?;
         mpv.command("loadfile", &[input_path])
             .map_err(|err| MyError::Audio(format!("Failed to load audio file: {:?}", err)))?;
         mpv.set_property("pause", true)
@@ -156,10 +158,9 @@ impl AudioPlayerControls for MpvAudioPlayer {
     }
 
     fn rewind(&mut self) -> Result<(), MyError> {
-        // TODO
-        Err(MyError::Audio(
-            "Rewind feature not implemented for MPV audio player".to_string(),
-        ))
+        self.mpv
+            .set_property("time-pos", 0.0)
+            .map_err(|e| MyError::Audio(format!("Rewind failed: {:?}", e)))
     }
 
     /// Seeks forward or backward by the specified number of seconds.

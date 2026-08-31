@@ -104,7 +104,6 @@ impl Runner {
         while self.state != State::Stopped {
             self.update_subtitle();
             self.update_playback_clock();
-
             select! {
                 recv(self.rx_controls) -> msg => {
                     match msg.unwrap() {
@@ -131,7 +130,7 @@ impl Runner {
                             let _ = self.audio_player.player.volume_down();
                         },
                         Control::Replay => {
-                            self.audio_player.player.rewind()?;
+                            let _ = self.audio_player.player.rewind();
                             if let Some(ref clock) = self.playback_clock {
                                 clock.set_position(Duration::ZERO);
                             }
